@@ -4,6 +4,7 @@ import { ArrowRight, ArrowLeft, Sun, Moon, Sparkles } from 'lucide-react'
 import { useInView } from 'react-intersection-observer'
 import { Button } from '@/components/ui/Button.jsx'
 import { Logo } from '@/components/ui/Logo.jsx'
+import { SignatureUnderline } from '@/components/ui/SignatureUnderline.jsx'
 import { useThemeStore } from '@/store/themeStore.js'
 
 export default function Landing() {
@@ -57,7 +58,10 @@ export default function Landing() {
             >
               <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-[1.1]">
                 Exchange skills,<br />
-                <span className="text-indigo-600 dark:text-indigo-400">not money.</span>
+                <span className="relative inline-block text-indigo-600 dark:text-indigo-400">
+                  not money.
+                  <SignatureUnderline delay={0.35} duration={1.1} />
+                </span>
               </h1>
               <p className="text-base sm:text-lg text-neutral-600 dark:text-neutral-400 mt-6 max-w-md leading-relaxed">
                 Connect with peers who know what you want to learn. Teach them what you know. Zero fees, zero subscriptions — pure mutual growth.

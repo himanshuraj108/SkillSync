@@ -2,6 +2,7 @@ import { Link, Outlet } from 'react-router-dom'
 import { Sparkles, Moon, Sun, ArrowRight, ArrowLeft } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore.js'
 import { Logo } from '@/components/ui/Logo.jsx'
+import { SignatureUnderline } from '@/components/ui/SignatureUnderline.jsx'
 
 export function AuthLayout({ children }) {
   const content = children || <Outlet />
@@ -28,7 +29,10 @@ export function AuthLayout({ children }) {
             </span>
             <h2 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-[1.15] mt-1 mb-3">
               Exchange skills,<br />
-              <span className="text-indigo-600 dark:text-indigo-400">not money.</span>
+              <span className="relative inline-block text-indigo-600 dark:text-indigo-400">
+                not money.
+                <SignatureUnderline delay={0.4} duration={1.1} />
+              </span>
             </h2>
             <p className="text-xs xl:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-sm">
               Teach what you know. Learn what you need. Zero fees, zero subscriptions — pure mutual growth.
