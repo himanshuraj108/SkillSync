@@ -27,11 +27,15 @@ export function AuthLayout({ children }) {
             <span className="text-[11px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
               Peer Knowledge Network
             </span>
-            <h2 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-[1.15] mt-1 mb-3">
-              Exchange skills,<br />
-              <span className="relative inline-block text-indigo-600 dark:text-indigo-400">
+            <h2 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-[1.18] mt-1 mb-3">
+              <span className="relative inline-block">
+                Exchange skills,
+                <SignatureUnderline variant="first-temporary" delay={0.2} />
+              </span>
+              <br />
+              <span className="relative inline-block text-indigo-600 dark:text-indigo-400 mt-1">
                 not money.
-                <SignatureUnderline delay={0.4} duration={1.1} />
+                <SignatureUnderline variant="second-permanent" delay={1.4} />
               </span>
             </h2>
             <p className="text-xs xl:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-sm">

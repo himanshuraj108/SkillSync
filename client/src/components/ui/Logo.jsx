@@ -6,60 +6,38 @@ export function LogoIcon({ className = 'h-8 w-8' }) {
       viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={cn('shrink-0 select-none shadow-md shadow-indigo-600/20 rounded-xl', className)}
+      className={cn('shrink-0 select-none shadow-md shadow-indigo-600/25 rounded-xl', className)}
     >
       <defs>
-        <linearGradient id="logo-bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#4f46e5" />
-          <stop offset="100%" stopColor="#7c3aed" />
-        </linearGradient>
-        <linearGradient id="logo-user-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#e0e7ff" />
+        <linearGradient id="logo-tile-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#4338ca" />
+          <stop offset="100%" stopColor="#6d28d9" />
         </linearGradient>
       </defs>
 
-      {/* Rounded Squircle Tile */}
-      <rect width="32" height="32" rx="9" fill="url(#logo-bg-grad)" />
+      {/* Squircle Base Tile */}
+      <rect width="32" height="32" rx="9" fill="url(#logo-tile-bg)" />
 
-      {/* Left User (Peer 1) */}
-      <circle cx="6.5" cy="11.5" r="2.5" fill="url(#logo-user-grad)" />
-      <path
-        d="M2.5 22c0-2.4 1.8-4.2 4-4.2h1.5c.8 0 1.5.3 2.1.8"
-        stroke="url(#logo-user-grad)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      {/* Laptop / Computer Monitor Window Frame */}
+      <rect x="3.5" y="5" width="25" height="17.5" rx="3" fill="#090d16" stroke="#ffffff" strokeWidth="1.3" />
 
-      {/* Center PC / Laptop Meeting Screen */}
-      <rect
-        x="11"
-        y="9.5"
-        width="10"
-        height="7.5"
-        rx="1.5"
-        fill="#0f172a"
-        stroke="url(#logo-user-grad)"
-        strokeWidth="1.6"
-      />
-      {/* Live 2-Way Meeting Presence on Screen */}
-      <circle cx="14" cy="13.2" r="1" fill="#38bdf8" />
-      <circle cx="18" cy="13.2" r="1" fill="#a855f7" />
-      <path d="M15.4 13.2h1.2" stroke="#ffffff" strokeWidth="1" strokeLinecap="round" />
+      {/* LEFT PEER VIDEO CALL TILE */}
+      <rect x="4.8" y="6.3" width="10.8" height="14.8" rx="2" fill="#0f2038" />
+      {/* Left User (Head & Torso) */}
+      <circle cx="10.2" cy="11" r="2.3" fill="#38bdf8" />
+      <path d="M 6.2 19.5 C 6.2 15.8 7.8 14.6 10.2 14.6 C 12.6 14.6 14.2 15.8 14.2 19.5 Z" fill="#38bdf8" />
+
+      {/* RIGHT PEER VIDEO CALL TILE */}
+      <rect x="16.4" y="6.3" width="10.8" height="14.8" rx="2" fill="#24123a" />
+      {/* Right User (Head & Torso) */}
+      <circle cx="21.8" cy="11" r="2.3" fill="#c084fc" />
+      <path d="M 17.8 19.5 C 17.8 15.8 19.4 14.6 21.8 14.6 C 24.2 14.6 25.8 15.8 25.8 19.5 Z" fill="#c084fc" />
+
       {/* Laptop Keyboard Base */}
-      <path
-        d="M9.5 18h13c.4 0 .7.3.6.7l-.3.8c-.1.3-.4.5-.7.5H9.9c-.3 0-.6-.2-.7-.5l-.3-.8c-.1-.4.2-.7.6-.7z"
-        fill="url(#logo-user-grad)"
-      />
+      <path d="M 6.5 24 H 25.5 L 26.5 26.2 C 26.7 26.6 26.4 27 25.9 27 H 6.1 C 5.6 27 5.3 26.6 5.5 26.2 Z" fill="#ffffff" />
 
-      {/* Right User (Peer 2) */}
-      <circle cx="25.5" cy="11.5" r="2.5" fill="url(#logo-user-grad)" />
-      <path
-        d="M29.5 22c0-2.4-1.8-4.2-4-4.2h-1.5c-.8 0-1.5.3-2.1.8"
-        stroke="url(#logo-user-grad)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      {/* Live Meeting Active Indicator Core */}
+      <circle cx="16" cy="24.5" r="1.1" fill="#10b981" />
     </svg>
   )
 }

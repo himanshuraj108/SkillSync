@@ -56,11 +56,15 @@ export default function Landing() {
               animate={{ opacity: heroInView ? 1 : 0, y: heroInView ? 0 : 24 }}
               transition={{ duration: 0.5 }}
             >
-              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-[1.1]">
-                Exchange skills,<br />
-                <span className="relative inline-block text-indigo-600 dark:text-indigo-400">
+              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-neutral-900 dark:text-white leading-[1.15]">
+                <span className="relative inline-block">
+                  Exchange skills,
+                  <SignatureUnderline variant="first-temporary" delay={0.2} />
+                </span>
+                <br />
+                <span className="relative inline-block text-indigo-600 dark:text-indigo-400 mt-1">
                   not money.
-                  <SignatureUnderline delay={0.35} duration={1.1} />
+                  <SignatureUnderline variant="second-permanent" delay={1.4} />
                 </span>
               </h1>
               <p className="text-base sm:text-lg text-neutral-600 dark:text-neutral-400 mt-6 max-w-md leading-relaxed">
