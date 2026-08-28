@@ -1,7 +1,8 @@
 import axios from 'axios'
+import { API_BASE_URL } from '@/lib/constants.js'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   withCredentials: true,
   timeout: 10000,
 })
@@ -59,7 +60,7 @@ api.interceptors.response.use(
         isRefreshing = true
 
         try {
-          const { data } = await axios.post('/api/auth/refresh-token', {}, { withCredentials: true })
+          const { data } = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {}, { withCredentials: true })
           if (data?.accessToken) {
             localStorage.setItem('ss_access_token', data.accessToken)
             setAuthToken(data.accessToken)
