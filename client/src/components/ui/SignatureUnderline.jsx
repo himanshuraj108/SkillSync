@@ -57,10 +57,10 @@ export function SignatureUnderline({
           }}
         />
       ) : (
-        // Second Signature Stroke (Draws under "not money." in White and stays)
+        // Second Signature Stroke (Draws under "not money." in Blue/Indigo gradient and stays)
         <motion.path
           d="M 3 14 C 60 5, 130 4, 195 8.5 C 235 11, 260 14, 277 10.5 C 235 17.5, 155 21, 65 20.5"
-          stroke="url(#sig-white-grad)"
+          stroke="url(#sig-blue-grad)"
           strokeWidth="3.5"
           strokeLinecap="round"
           strokeLinejoin="round"
