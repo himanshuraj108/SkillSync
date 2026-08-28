@@ -36,3 +36,17 @@ export const uploadAvatar = multer({
 }).single('avatar');
 
 export const uploadFile = upload.single('file');
+
+export const uploadVideo = multer({
+    storage,
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('video/') || file.mimetype === 'application/octet-stream') {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid video file format!'), false);
+        }
+    },
+    limits: {
+        fileSize: 100 * 1024 * 1024 // 100 MB
+    }
+}).single('video');

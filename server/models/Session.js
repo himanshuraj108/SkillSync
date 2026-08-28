@@ -18,6 +18,15 @@ const sessionSchema = new mongoose.Schema({
     agenda: String,
     meeting_notes: String,
     recording_url: String,
+    recording: {
+        url: { type: String, default: '' },
+        file_size: { type: Number, default: 0 },
+        duration_seconds: { type: Number, default: 0 },
+        created_at: { type: Date },
+        expires_at: { type: Date },
+        saved_by_users: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        consent: { type: Map, of: Boolean, default: {} }
+    },
     transcript: String,
     ai_summary: String,
     teacher_post_notes: String,

@@ -67,6 +67,15 @@ const setupVideoSocket = (io, socket) => {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         });
     });
+
+    socket.on('session_recording_consent', (data) => {
+        const { sessionId, consent } = data;
+        socket.to(`session_${sessionId}`).emit('session_recording_consent_update', {
+            userId: socket.user._id,
+            userName: socket.user.name,
+            consent
+        });
+    });
 };
 
 export default setupVideoSocket;

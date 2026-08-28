@@ -3,14 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff, ShieldAlert, ArrowRight,
   Monitor, MessageSquare, Code, FileText, CheckSquare, Send,
-  Maximize2, Minimize2, Loader2, Sparkles, RefreshCw, CheckCircle2, RotateCcw
+  Maximize2, Minimize2, Loader2, Sparkles, RefreshCw, CheckCircle2, RotateCcw, Clock
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore.js'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSession, completeSession } from '@/services/session.service.js'
+import { getSession, completeSession, setRecordingConsent, uploadSessionRecording } from '@/services/session.service.js'
 import { useSocketStore } from '@/store/socketStore.js'
 import { Button } from '@/components/ui/Button.jsx'
 import { Avatar } from '@/components/ui/Avatar.jsx'
+import { RecordingConsentModal } from '@/components/video/RecordingConsentModal.jsx'
 import { cn } from '@/lib/utils.js'
 import { notify } from '@/lib/notify.jsx'
 
@@ -38,6 +39,12 @@ export default function VideoSession() {
   const [localStream, setLocalStream] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
+  // 7-Day Recording State & Permissions
+  const [showConsentModal, setShowConsentModal] = useState(true)
+  const [myRecordingConsent, setMyRecordingConsent] = useState(null)
+  const [partnerRecordingConsent, setPartnerRecordingConsent] = useState(null)
+  const [isRecordingActive, setIsRecordingActive] = useState(false)
+
   // Interactive teaching studio state
   const [activeTab, setActiveTab] = useState('code') // 'code' | 'notes' | 'chat' | 'agenda'
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -58,9 +65,55 @@ export default function VideoSession() {
   const [learnerConfidence, setLearnerConfidence] = useState(5)
 
   const localVideoRef = useRef(null)
+  const localStreamRef = useRef(null)
   const screenStreamRef = useRef(null)
   const timerRef = useRef(null)
   const chatBottomRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const recordedChunksRef = useRef([])
+
+  // Bulletproof media cleanup function
+  const stopAllMedia = useCallback(() => {
+    // 1. Stop all tracks on local camera & mic stream
+    if (localStreamRef.current) {
+      try {
+        localStreamRef.current.getTracks().forEach(track => {
+          track.stop()
+          track.enabled = false
+        })
+      } catch (_) {}
+      localStreamRef.current = null
+    }
+
+    // 2. Stop all screen share tracks
+    if (screenStreamRef.current) {
+      try {
+        screenStreamRef.current.getTracks().forEach(track => {
+          track.stop()
+          track.enabled = false
+        })
+      } catch (_) {}
+      screenStreamRef.current = null
+    }
+
+    // 3. Detach stream from video element
+    if (localVideoRef.current) {
+      try {
+        localVideoRef.current.srcObject = null
+      } catch (_) {}
+    }
+
+    // 4. Stop MediaRecorder if running
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop()
+      } catch (_) {}
+    }
+
+    setLocalStream(null)
+    setIsScreenSharing(false)
+    setIsRecordingActive(false)
+  }, [])
 
   const { data: sessionData } = useQuery({
     queryKey: ['session', sessionId],
@@ -72,25 +125,99 @@ export default function VideoSession() {
   const isTeacher = session?.teacher?._id === user?._id || session?.teacher === user?._id
   const partner = session ? (isTeacher ? session.learner : session.teacher) : null
 
+  // Handle user's personal recording consent selection
+  const handleRecordingConsentChoice = async (consent) => {
+    setMyRecordingConsent(consent)
+    setShowConsentModal(false)
+    try {
+      await setRecordingConsent(sessionId, consent)
+      if (socket && sessionId) {
+        socket.emit('session_recording_consent', { sessionId, consent })
+      }
+      if (consent) {
+        notify.success('Recording will be saved to your account for 7 days.', 'Recording Enabled')
+      } else {
+        notify.info('Recording will not be saved to your account.', 'Recording Preference')
+      }
+    } catch (err) {
+      console.error('Failed to set recording consent:', err)
+    }
+  }
+
+  // Start MediaRecorder if at least one user opted in
+  const startRecording = useCallback((stream) => {
+    if (!stream || mediaRecorderRef.current) return
+    try {
+      recordedChunksRef.current = []
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '')
+        
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunksRef.current.push(event.data)
+        }
+      }
+      recorder.start(1000)
+      mediaRecorderRef.current = recorder
+      setIsRecordingActive(true)
+    } catch (err) {
+      console.warn('MediaRecorder error:', err)
+    }
+  }, [])
+
+  // Stop recording and upload to backend if permitted
+  const stopAndUploadRecording = useCallback(async () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop()
+      } catch (_) {}
+      setIsRecordingActive(false)
+    }
+
+    const shouldUpload = myRecordingConsent === true || partnerRecordingConsent === true
+    if (shouldUpload && recordedChunksRef.current.length > 0) {
+      try {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
+        const formData = new FormData()
+        formData.append('video', blob, `session-${sessionId}.webm`)
+        formData.append('duration_seconds', elapsedSeconds)
+        await uploadSessionRecording(sessionId, formData)
+      } catch (err) {
+        console.warn('Recording upload error:', err)
+      }
+    }
+  }, [myRecordingConsent, partnerRecordingConsent, sessionId, elapsedSeconds])
+
   // Complete session mutation
   const completeMutation = useMutation({
-    mutationFn: () => completeSession(sessionId, {
-      teacher_post_notes: teacherNotes || 'Completed 1-on-1 exchange successfully.',
-      learner_confidence_after: Number(learnerConfidence) || 5
-    }),
+    mutationFn: async () => {
+      await stopAndUploadRecording()
+      stopAllMedia()
+      return completeSession(sessionId, {
+        teacher_post_notes: teacherNotes || 'Completed 1-on-1 exchange successfully.',
+        learner_confidence_after: Number(learnerConfidence) || 5
+      })
+    },
     onSuccess: () => {
+      stopAllMedia()
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
       notify.success('Session marked as completed! Gained exchange reputation.', 'Session Finished')
       navigate(`/sessions/${sessionId}`)
     },
-    onError: () => navigate(`/sessions/${sessionId}`),
+    onError: () => {
+      stopAllMedia()
+      navigate(`/sessions/${sessionId}`)
+    },
   })
 
   // Start local camera & mic
   const startMedia = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      localStreamRef.current = stream
       setLocalStream(stream)
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream
@@ -98,11 +225,13 @@ export default function VideoSession() {
       if (!timerRef.current) {
         timerRef.current = setInterval(() => setElapsedSeconds(s => s + 1), 1000)
       }
+      // Start recording stream
+      startRecording(stream)
     } catch (err) {
       console.warn('Camera/Mic permission warning:', err)
       notify.info('Camera or mic is muted or not accessible. You can still use code & chat tools.', 'Media Info')
     }
-  }, [])
+  }, [startRecording])
 
   // Socket room joining and collaborative event listeners
   useEffect(() => {
@@ -127,11 +256,16 @@ export default function VideoSession() {
       setChatMessages(prev => [...prev, msg])
     })
 
+    socket.on('session_recording_consent_update', (data) => {
+      setPartnerRecordingConsent(data.consent)
+    })
+
     return () => {
       socket.emit('leave_room', sessionId)
       socket.off('session_code_update')
       socket.off('session_notes_update')
       socket.off('session_chat_broadcast')
+      socket.off('session_recording_consent_update')
     }
   }, [socket, sessionId, user?._id, hasLeftMeeting])
 
@@ -140,11 +274,10 @@ export default function VideoSession() {
       startMedia()
     }
     return () => {
+      stopAllMedia()
       if (timerRef.current) clearInterval(timerRef.current)
-      localStream?.getTracks().forEach(t => t.stop())
-      screenStreamRef.current?.getTracks().forEach(t => t.stop())
     }
-  }, [user?.is_email_verified, hasLeftMeeting])
+  }, [user?.is_email_verified, hasLeftMeeting, startMedia, stopAllMedia])
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -177,16 +310,16 @@ export default function VideoSession() {
 
   // Toggle Mute
   const toggleMute = () => {
-    if (localStream) {
-      localStream.getAudioTracks().forEach(t => { t.enabled = !t.enabled })
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !t.enabled })
       setIsMuted(m => !m)
     }
   }
 
   // Toggle Video
   const toggleVideo = () => {
-    if (localStream) {
-      localStream.getVideoTracks().forEach(t => { t.enabled = !t.enabled })
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !t.enabled })
       setIsVideoOff(v => !v)
     }
   }
@@ -194,10 +327,13 @@ export default function VideoSession() {
   // Screen share
   const toggleScreenShare = async () => {
     if (isScreenSharing) {
-      screenStreamRef.current?.getTracks().forEach(t => t.stop())
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach(t => t.stop())
+        screenStreamRef.current = null
+      }
       setIsScreenSharing(false)
-      if (localVideoRef.current && localStream) {
-        localVideoRef.current.srcObject = localStream
+      if (localVideoRef.current && localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current
       }
     } else {
       try {
@@ -209,8 +345,8 @@ export default function VideoSession() {
         setIsScreenSharing(true)
         screenStream.getVideoTracks()[0].onended = () => {
           setIsScreenSharing(false)
-          if (localVideoRef.current && localStream) {
-            localVideoRef.current.srcObject = localStream
+          if (localVideoRef.current && localStreamRef.current) {
+            localVideoRef.current.srcObject = localStreamRef.current
           }
         }
       } catch (err) {
@@ -219,12 +355,9 @@ export default function VideoSession() {
     }
   }
 
-  // User clicked End Call -> Stop tracks and show Choice screen (Rejoin vs End)
+  // User clicked End Call -> Stop all camera/mic tracks completely
   const handleLeaveMeetingClick = () => {
-    localStream?.getTracks().forEach(t => t.stop())
-    screenStreamRef.current?.getTracks().forEach(t => t.stop())
-    setLocalStream(null)
-    setIsScreenSharing(false)
+    stopAllMedia()
     setHasLeftMeeting(true)
   }
 
@@ -239,8 +372,7 @@ export default function VideoSession() {
   // Confirm permanent completion (Red Action)
   const handleConfirmFinish = () => {
     if (timerRef.current) clearInterval(timerRef.current)
-    localStream?.getTracks().forEach(t => t.stop())
-    screenStreamRef.current?.getTracks().forEach(t => t.stop())
+    stopAllMedia()
     completeMutation.mutate()
   }
 
@@ -750,6 +882,13 @@ export default function VideoSession() {
           )}
         </aside>
       )}
+
+      {/* 7-Day Recording Personal Choice Modal */}
+      <RecordingConsentModal
+        isOpen={showConsentModal && myRecordingConsent === null}
+        onSelect={handleRecordingConsentChoice}
+        partnerName={partner?.name}
+      />
     </div>
   )
 }

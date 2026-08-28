@@ -6,6 +6,7 @@ import LearningProgress from '../models/LearningProgress.js';
 import { generateSessionSummary, detectWeakTopics } from '../utils/ai.utils.js';
 import { penalizeNoShow, rewardSessionCompletion } from '../utils/reputation.utils.js';
 import { sendSessionScheduledEmail, sendSessionCompletedEmail } from '../utils/email.utils.js';
+import { uploadToCloudinary } from '../config/cloudinary.js';
 
 export const createSession = async (req, res, next) => {
     try {
@@ -24,21 +25,34 @@ export const createSession = async (req, res, next) => {
         }
 
         const scheduledDate = new Date(scheduled_at);
-        if (scheduledDate < new Date()) {
-            return res.status(400).json({ success: false, message: 'Scheduled time must be in the future' });
+        const now = new Date();
+        // Allow up to a 5-minute clock skew buffer so users can book immediately
+        if (scheduledDate.getTime() < now.getTime() - 5 * 60 * 1000) {
+            return res.status(400).json({ success: false, message: 'Scheduled time must not be in the past' });
         }
 
-        const conflict = await Session.findOne({
+        const newStart = scheduledDate.getTime();
+        const newEnd = newStart + (parseInt(duration_minutes, 10) || 60) * 60000;
+
+        // Check for genuine time overlap only with upcoming/future scheduled sessions
+        const existingActiveSessions = await Session.find({
             $or: [{ teacher: req.user._id }, { learner: req.user._id }],
-            status: 'scheduled',
-            scheduled_at: {
-                $gte: new Date(scheduledDate.getTime() - duration_minutes * 60000),
-                $lte: new Date(scheduledDate.getTime() + duration_minutes * 60000)
-            }
+            status: { $in: ['scheduled', 'live'] }
+        });
+
+        const conflict = existingActiveSessions.find(s => {
+            const sStart = new Date(s.scheduled_at).getTime();
+            const sEnd = sStart + (s.duration_minutes || 60) * 60000;
+            // Overlap condition: (StartA < EndB) and (EndA > StartB)
+            return newStart < sEnd && newEnd > sStart;
         });
 
         if (conflict) {
-            return res.status(400).json({ success: false, message: 'Time slot conflict' });
+            const conflictTime = new Date(conflict.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return res.status(400).json({ 
+                success: false, 
+                message: `Time slot conflict with "${conflict.title}" scheduled around ${conflictTime}. Please pick another time or view your existing session.` 
+            });
         }
 
         const session = await Session.create({
@@ -120,7 +134,29 @@ export const getSession = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Forbidden' });
         }
 
-        res.status(200).json({ success: true, data: session });
+        const sessionObj = session.toObject();
+        const userIdStr = req.user._id.toString();
+
+        // 7-Day Recording Visibility & Privacy Logic
+        if (sessionObj.recording && sessionObj.recording.url) {
+            const isExpired = sessionObj.recording.expires_at && new Date(sessionObj.recording.expires_at) < new Date();
+            const isSavedByMe = (sessionObj.recording.saved_by_users || []).some(
+                u => u.toString() === userIdStr
+            );
+
+            if (isExpired || !isSavedByMe) {
+                // Hide recording URL if expired or if current user opted out
+                sessionObj.recording.url = '';
+                sessionObj.recording.is_visible_to_me = false;
+                sessionObj.recording.is_expired = isExpired;
+                sessionObj.recording_url = '';
+            } else {
+                sessionObj.recording.is_visible_to_me = true;
+                sessionObj.recording.is_expired = false;
+            }
+        }
+
+        res.status(200).json({ success: true, data: sessionObj });
     } catch (error) {
         next(error);
     }
@@ -265,6 +301,139 @@ export const cancelSession = async (req, res, next) => {
         }
 
         res.status(200).json({ success: true, data: session });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const setRecordingConsent = async (req, res, next) => {
+    try {
+        const { consent } = req.body; // boolean: true = save to my account, false = do not save
+        const session = await Session.findById(req.params.id);
+
+        if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+
+        const userIdStr = req.user._id.toString();
+        const isParticipant = session.teacher.toString() === userIdStr || session.learner.toString() === userIdStr;
+        if (!isParticipant) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+        if (!session.recording) {
+            session.recording = { saved_by_users: [], consent: new Map() };
+        }
+
+        if (!session.recording.consent) {
+            session.recording.consent = new Map();
+        }
+
+        session.recording.consent.set(userIdStr, Boolean(consent));
+
+        // Update saved_by_users array
+        if (consent) {
+            const alreadySaved = (session.recording.saved_by_users || []).some(u => u.toString() === userIdStr);
+            if (!alreadySaved) {
+                session.recording.saved_by_users.push(req.user._id);
+            }
+        } else {
+            session.recording.saved_by_users = (session.recording.saved_by_users || []).filter(
+                u => u.toString() !== userIdStr
+            );
+        }
+
+        await session.save();
+
+        res.status(200).json({
+            success: true,
+            data: {
+                consent: Boolean(consent),
+                saved_by_users: session.recording.saved_by_users,
+                total_consented: session.recording.saved_by_users.length
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const uploadSessionRecording = async (req, res, next) => {
+    try {
+        const session = await Session.findById(req.params.id);
+        if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+
+        const userIdStr = req.user._id.toString();
+        const isParticipant = session.teacher.toString() === userIdStr || session.learner.toString() === userIdStr;
+        if (!isParticipant) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'No video file uploaded' });
+        }
+
+        // If neither user consented to save, reject upload
+        if (!session.recording?.saved_by_users?.length) {
+            return res.status(400).json({
+                success: false,
+                message: 'Neither participant opted to save the recording. No recording stored.'
+            });
+        }
+
+        const durationSeconds = parseInt(req.body.duration_seconds, 10) || 0;
+        const uploadResult = await uploadToCloudinary(
+            req.file.buffer,
+            'skillswap/recordings',
+            { resource_type: 'video' },
+            req.file.mimetype || 'video/webm'
+        );
+
+        const now = new Date();
+        const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // Exactly 7 Days TTL
+
+        session.recording.url = uploadResult.url;
+        session.recording.file_size = req.file.size;
+        session.recording.duration_seconds = durationSeconds;
+        session.recording.created_at = now;
+        session.recording.expires_at = sevenDaysLater;
+        session.recording_url = uploadResult.url;
+
+        await session.save();
+
+        res.status(200).json({
+            success: true,
+            data: {
+                url: uploadResult.url,
+                duration_seconds: durationSeconds,
+                expires_at: sevenDaysLater,
+                saved_by_users: session.recording.saved_by_users
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const deleteRecording = async (req, res, next) => {
+    try {
+        const session = await Session.findById(req.params.id);
+        if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+
+        const userIdStr = req.user._id.toString();
+        const isParticipant = session.teacher.toString() === userIdStr || session.learner.toString() === userIdStr;
+        if (!isParticipant) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+        if (session.recording) {
+            // Remove requesting user from saved_by_users
+            session.recording.saved_by_users = (session.recording.saved_by_users || []).filter(
+                u => u.toString() !== userIdStr
+            );
+
+            // If no user has this recording saved anymore, clean up URL
+            if (session.recording.saved_by_users.length === 0) {
+                session.recording.url = '';
+                session.recording_url = '';
+            }
+
+            await session.save();
+        }
+
+        res.status(200).json({ success: true, message: 'Recording removed from your account.' });
     } catch (error) {
         next(error);
     }

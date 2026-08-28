@@ -3,9 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Video, Clock, MessageSquare, ShieldAlert,
-  Play, CheckCircle2, User, BookOpen, AlertCircle, Calendar, Sparkles, Loader2
+  Play, CheckCircle2, User, BookOpen, AlertCircle, Calendar, Sparkles, Loader2,
+  Download, Trash2, Lock
 } from 'lucide-react'
-import { getSession, startSession, cancelSession } from '@/services/session.service.js'
+import { getSession, startSession, cancelSession, deleteSessionRecording } from '@/services/session.service.js'
 import { useAuthStore } from '@/store/authStore.js'
 import { Button } from '@/components/ui/Button.jsx'
 import { Avatar } from '@/components/ui/Avatar.jsx'
@@ -49,6 +50,25 @@ export default function SessionDetail() {
     },
     onError: (err) => notify.error(err.message || 'Failed to cancel session', 'Error'),
   })
+
+  const deleteRecordingMutation = useMutation({
+    mutationFn: () => deleteSessionRecording(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['session', id] })
+      notify.success('Recording removed from your account.', 'Deleted')
+    },
+    onError: (err) => notify.error(err.message || 'Failed to delete recording', 'Error'),
+  })
+
+  const getRemainingDays = (expiresAt) => {
+    if (!expiresAt) return null
+    const diffMs = new Date(expiresAt).getTime() - Date.now()
+    if (diffMs <= 0) return 'Expired'
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+    if (days > 0) return `${days}d ${hours}h remaining`
+    return `${hours}h remaining`
+  }
 
   if (isLoading) {
     return (
@@ -324,6 +344,87 @@ export default function SessionDetail() {
             <p className="text-sm text-neutral-300 leading-relaxed whitespace-pre-wrap">
               {typeof session.ai_summary === 'string' ? session.ai_summary : JSON.stringify(session.ai_summary, null, 2)}
             </p>
+          </div>
+        )}
+
+        {/* 7-Day Session Recording Card (If Completed) */}
+        {isCompleted && (
+          <div className="p-5 rounded-2xl border border-neutral-800 bg-neutral-900/50 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-800/80">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-indigo-950/80 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <Video className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">
+                    Session Recording
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">
+                    7-Day review & study access
+                  </p>
+                </div>
+              </div>
+
+              {session.recording?.url && session.recording?.is_visible_to_me !== false ? (
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-950/60 border border-amber-800/60 text-amber-300 text-[11px] font-bold">
+                    <Clock className="h-3 w-3" />
+                    {getRemainingDays(session.recording.expires_at)}
+                  </span>
+                  <a
+                    href={session.recording.url}
+                    download={`session-${session._id}.webm`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button size="sm" variant="outline" className="h-8 text-xs font-semibold">
+                      <Download className="h-3.5 w-3.5 mr-1" /> Download
+                    </Button>
+                  </a>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => deleteRecordingMutation.mutate()}
+                    disabled={deleteRecordingMutation.isPending}
+                    className="h-8 text-xs text-neutral-400 hover:text-red-400"
+                    title="Delete recording from my account"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            {session.recording?.url && session.recording?.is_visible_to_me !== false ? (
+              <div className="space-y-2">
+                <div className="rounded-2xl overflow-hidden border border-neutral-800 bg-black aspect-video flex items-center justify-center">
+                  <video
+                    controls
+                    src={session.recording.url}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <p className="text-[11px] text-neutral-500 text-center">
+                  This recording is saved exclusively to permitted accounts and will automatically delete in 7 days.
+                </p>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800/60 text-xs text-neutral-400 flex items-start gap-2.5">
+                <Lock className="h-4 w-4 text-neutral-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-neutral-300">
+                    {session.recording?.is_expired
+                      ? 'Recording Expired'
+                      : 'Recording Not Stored'}
+                  </p>
+                  <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                    {session.recording?.is_expired
+                      ? 'The 7-day retention period has ended. This recording has been permanently deleted from storage.'
+                      : 'You chose not to save a copy of this session to your account during pre-session setup.'}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

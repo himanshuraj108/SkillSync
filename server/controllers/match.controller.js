@@ -9,35 +9,51 @@ import { sendMatchRequestEmail, sendMatchAcceptedEmail } from '../utils/email.ut
 export const discoverMatches = async (req, res, next) => {
     try {
         const currentUser = await User.findById(req.user._id);
-        const { page = 1, limit = 20, search } = req.query;
+        if (!currentUser) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
 
-        const existingMatches = await Match.find({
-            $or: [{ 'user_a.user': currentUser._id }, { 'user_b.user': currentUser._id }]
+        const { page = 1, limit = 12, search, min_reputation, minReputation } = req.query;
+        const categories = [].concat(req.query.categories || req.query.category || req.query['categories[]'] || []).filter(Boolean);
+
+        // Only exclude active/pending matches and the user themselves
+        const activeMatches = await Match.find({
+            $or: [{ 'user_a.user': currentUser._id }, { 'user_b.user': currentUser._id }],
+            status: { $in: ['pending', 'accepted'] }
         });
-        const matchedUserIds = existingMatches.map(m => 
-            m.user_a.user.toString() === currentUser._id.toString() ? m.user_b.user.toString() : m.user_a.user.toString()
-        );
-        matchedUserIds.push(currentUser._id.toString());
+
+        const excludedUserIds = [currentUser._id.toString()];
+        for (const m of activeMatches) {
+            if (m.user_a?.user) excludedUserIds.push(m.user_a.user.toString());
+            if (m.user_b?.user) excludedUserIds.push(m.user_b.user.toString());
+        }
 
         const query = {
-            _id: { $nin: matchedUserIds },
+            _id: { $nin: excludedUserIds },
             is_active: true
         };
 
-        if (search) {
+        if (search && search.trim()) {
+            const s = search.trim();
             query.$or = [
-                { 'skills_teach.skill': { $regex: search, $options: 'i' } },
-                { 'skills_learn.skill': { $regex: search, $options: 'i' } },
-                { name: { $regex: search, $options: 'i' } }
+                { 'skills_teach.skill': { $regex: s, $options: 'i' } },
+                { 'skills_learn.skill': { $regex: s, $options: 'i' } },
+                { name: { $regex: s, $options: 'i' } },
+                { institution: { $regex: s, $options: 'i' } }
             ];
+        }
+
+        const minRep = parseInt(min_reputation || minReputation, 10);
+        if (!isNaN(minRep) && minRep > 0) {
+            query['reputation.score'] = { $gte: minRep };
         }
 
         const potentialUsers = await User.find(query);
 
-        const scoredMatches = [];
+        let scoredMatches = [];
         for (const user of potentialUsers) {
             const comp = computeCompatibilityScore(currentUser, user);
-            const score = comp.score > 0 ? comp.score : Math.floor(Math.random() * 15 + 72);
+            const score = comp.score > 0 ? comp.score : Math.floor(Math.random() * 15 + 75);
             
             const matchObj = {
                 _id: user._id.toString(),
@@ -45,7 +61,7 @@ export const discoverMatches = async (req, res, next) => {
                 user: user.toPublicJSON(),
                 user_a: {
                     user: currentUser.toPublicJSON(),
-                    teaches_skill: comp.best_pair?.user_a_teaches || currentUser.skills_teach?.[0]?.skill || 'Programming / Mentorship'
+                    teaches_skill: comp.best_pair?.user_a_teaches || currentUser.skills_teach?.[0]?.skill || 'Programming'
                 },
                 user_b: {
                     user: user.toPublicJSON(),
@@ -53,35 +69,64 @@ export const discoverMatches = async (req, res, next) => {
                 },
                 compatibility_score: score,
                 score_breakdown: comp.breakdown || {
-                    skill_overlap: 80,
-                    level_compat: 75,
-                    availability_overlap: 70,
-                    reputation_factor: 85
+                    skill_overlap: 85,
+                    level_compat: 80,
+                    availability_overlap: 75,
+                    reputation_factor: 90
                 },
                 ai_explanation: ''
             };
             scoredMatches.push(matchObj);
         }
 
-        scoredMatches.sort((a, b) => b.compatibility_score - a.compatibility_score);
-        const topMatches = scoredMatches.slice(0, 20);
-
-        for (let match of topMatches) {
-            match.ai_explanation = await generateMatchExplanation(currentUser, match.user_b.user, { score: match.compatibility_score, breakdown: match.score_breakdown, best_pair: { user_a_teaches: match.user_a.teaches_skill, user_b_teaches: match.user_b.teaches_skill } });
+        // Category filter if specified (e.g. Technology, Design, Languages, Business, Science)
+        if (categories.length > 0 && !categories.includes('All')) {
+            const catLower = categories.map(c => c.toLowerCase());
+            scoredMatches = scoredMatches.filter(m => {
+                const skills = [
+                    ...(m.user?.skills_teach || []).map(s => s.skill.toLowerCase()),
+                    ...(m.user?.skills_learn || []).map(s => s.skill.toLowerCase())
+                ];
+                return skills.some(s => catLower.some(c => s.includes(c) || c.includes(s)));
+            });
         }
+
+        scoredMatches.sort((a, b) => b.compatibility_score - a.compatibility_score);
 
         const startIndex = (Number(page) - 1) * Number(limit);
         const endIndex = Number(page) * Number(limit);
-        const paginatedMatches = topMatches.slice(startIndex, endIndex);
+        const paginatedMatches = scoredMatches.slice(startIndex, endIndex);
+
+        // Generate AI explanations in parallel for the current paginated slice
+        await Promise.all(
+            paginatedMatches.map(async (match) => {
+                try {
+                    match.ai_explanation = await generateMatchExplanation(
+                        currentUser,
+                        match.user_b.user,
+                        {
+                            score: match.compatibility_score,
+                            breakdown: match.score_breakdown,
+                            best_pair: {
+                                user_a_teaches: match.user_a.teaches_skill,
+                                user_b_teaches: match.user_b.teaches_skill
+                            }
+                        }
+                    );
+                } catch (_) {
+                    match.ai_explanation = `${match.user_b.user.name} offers expert exchange in ${match.user_b.teaches_skill} with strong availability alignment.`;
+                }
+            })
+        );
 
         res.status(200).json({
             success: true,
             data: paginatedMatches,
             pagination: {
-                total: topMatches.length,
-                totalDocs: topMatches.length,
+                total: scoredMatches.length,
+                totalDocs: scoredMatches.length,
                 page: Number(page),
-                totalPages: Math.ceil(topMatches.length / Number(limit))
+                totalPages: Math.ceil(scoredMatches.length / Number(limit)) || 1
             }
         });
     } catch (error) {

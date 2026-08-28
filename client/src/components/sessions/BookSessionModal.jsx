@@ -63,7 +63,7 @@ export default function BookSessionModal({ match, onClose }) {
       onClose()
     },
     onError: (err) => {
-      notify.error(err.message || 'Failed to create session. Try a different time slot.', 'Booking Failed')
+      notify.error(err.response?.data?.message || err.message || 'Failed to create session. Try a different time slot.', 'Booking Failed')
     },
   })
 

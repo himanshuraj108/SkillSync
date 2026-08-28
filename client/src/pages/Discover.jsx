@@ -226,11 +226,13 @@ export default function Discover() {
           <div className="h-12 w-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-400 mb-3">
             <Compass className="h-6 w-6" />
           </div>
-          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 mb-1">No matches found</h3>
-          <p className="text-xs text-neutral-500 mb-4 max-w-sm">
+          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 mb-1">
+            {search ? 'No matches found' : 'All caught up!'}
+          </h3>
+          <p className="text-xs text-neutral-500 mb-4 max-w-sm leading-relaxed">
             {search
               ? `No partners found matching "${search}". Try searching for another skill.`
-              : 'Try clearing filters to see all available skill swaps.'}
+              : 'You are currently matched with active peers or no other new members are available. When new members join or update skills, they will appear here automatically.'}
           </p>
           <Button
             variant="outline"

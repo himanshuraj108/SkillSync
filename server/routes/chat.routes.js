@@ -11,5 +11,6 @@ router.get('/:id', getConversation);
 router.get('/:id/messages', getMessages);
 router.post('/:id/messages', sendMessage);
 router.post('/:id/read', markRead);
+router.patch('/:id/read', markRead);
 
 export default router;
