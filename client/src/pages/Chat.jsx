@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Send, MessageSquare, Search, ArrowLeft, MoreVertical, Compass,
-  Calendar, Check, CheckCheck, Loader2
+  Calendar, Check, CheckCheck, Loader2, Paperclip, Smile
 } from 'lucide-react'
 import { getConversations, getMessages, sendMessage, markRead } from '@/services/chat.service.js'
 import { Button } from '@/components/ui/Button.jsx'
@@ -14,39 +14,120 @@ import { formatRelativeTime, formatDate, truncateText, cn } from '@/lib/utils.js
 import BookSessionModal from '@/components/sessions/BookSessionModal.jsx'
 import toast from 'react-hot-toast'
 
-function MessageBubble({ message, isOwn }) {
+/**
+ * WhatsApp-Style Message Bubble
+ * - Right: My message (Indigo / Violet with checkmarks & right tail)
+ * - Left: Their message (Dark Graphite / Slate with avatar & left tail)
+ */
+function MessageBubble({ message, isOwn, partner, showAvatar, showSenderName }) {
   const timeStr = message.timestamp || message.created_at
-    ? new Date(message.timestamp || message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    ? new Date(message.timestamp || message.created_at).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
     : ''
 
   return (
-    <div className={cn('flex w-full my-1 px-1', isOwn ? 'justify-end' : 'justify-start')}>
+    <div
+      className={cn(
+        'flex w-full my-1 px-2 items-end gap-2 group',
+        isOwn ? 'justify-end' : 'justify-start'
+      )}
+    >
+      {/* Left side partner avatar (Only shown for incoming messages) */}
+      {!isOwn && (
+        <div className="w-7 h-7 shrink-0 mb-0.5">
+          {showAvatar ? (
+            <Avatar src={partner?.avatar?.url} name={partner?.name} size="xs" />
+          ) : (
+            <div className="w-7 h-7" />
+          )}
+        </div>
+      )}
+
+      {/* Bubble Container */}
       <div
         className={cn(
-          'max-w-[82%] sm:max-w-[72%] px-3.5 py-2 text-sm shadow-sm transition-all relative break-words',
+          'max-w-[85%] sm:max-w-[70%] px-3.5 py-2 text-[13.5px] shadow-sm transition-all relative break-words',
           isOwn
-            ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-sm'
-            : 'bg-neutral-800 text-neutral-100 rounded-2xl rounded-tl-sm border border-neutral-750'
+            ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-xs shadow-indigo-950/20'
+            : 'bg-neutral-800 dark:bg-[#1e293b] text-neutral-100 rounded-2xl rounded-tl-xs border border-neutral-700/60 shadow-black/20'
         )}
       >
+        {/* Partner Name label if incoming first in group */}
+        {!isOwn && showSenderName && partner?.name && (
+          <p className="text-[11px] font-bold text-indigo-400 mb-1 leading-none">
+            {partner.name}
+          </p>
+        )}
+
+        {/* Message Content */}
         {message.type === 'code' ? (
-          <pre className="font-mono text-xs whitespace-pre-wrap bg-black/30 p-2.5 rounded-xl my-1 overflow-x-auto text-emerald-400">
+          <pre className="font-mono text-xs whitespace-pre-wrap bg-black/40 p-2.5 rounded-xl my-1 overflow-x-auto text-emerald-400 border border-neutral-700/50">
             {message.content}
           </pre>
         ) : (
-          <p className="whitespace-pre-wrap leading-relaxed select-text">{message.content}</p>
+          <p className="whitespace-pre-wrap leading-relaxed select-text inline">
+            {message.content}
+          </p>
         )}
 
-        <div className={cn(
-          'flex items-center justify-end gap-1 mt-0.5 select-none',
-          isOwn ? 'text-indigo-200' : 'text-neutral-400'
-        )}>
-          <span className="text-[10px] tracking-tight">{timeStr}</span>
-          {isOwn && <CheckCheck className="h-3 w-3 text-indigo-300" />}
-        </div>
+        {/* WhatsApp-style bottom-right inline timestamp + double tick */}
+        <span
+          className={cn(
+            'inline-flex items-center gap-1 float-right ml-3.5 mt-1.5 select-none text-[10px] tabular-nums',
+            isOwn ? 'text-indigo-200/85' : 'text-neutral-400'
+          )}
+        >
+          {timeStr}
+          {isOwn && (
+            <CheckCheck className="h-3.5 w-3.5 text-sky-300 inline -mr-0.5" />
+          )}
+        </span>
       </div>
     </div>
   )
+}
+
+// Group messages by Calendar Date (WhatsApp style)
+function groupMessagesByDate(msgs) {
+  const groups = []
+  let currentDate = null
+  let currentGroup = []
+
+  msgs.forEach((msg) => {
+    const d = new Date(msg.timestamp || msg.created_at || Date.now())
+    const dateStr = d.toDateString()
+    if (dateStr !== currentDate) {
+      if (currentGroup.length > 0) {
+        groups.push({ date: currentDate, messages: currentGroup })
+      }
+      currentDate = dateStr
+      currentGroup = [msg]
+    } else {
+      currentGroup.push(msg)
+    }
+  })
+
+  if (currentGroup.length > 0) {
+    groups.push({ date: currentDate, messages: currentGroup })
+  }
+
+  return groups
+}
+
+function formatDateHeader(dateStr) {
+  const date = new Date(dateStr)
+  const today = new Date().toDateString()
+  const yesterday = new Date(Date.now() - 86400000).toDateString()
+
+  if (dateStr === today) return 'Today'
+  if (dateStr === yesterday) return 'Yesterday'
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 export default function Chat() {
@@ -78,10 +159,10 @@ export default function Chat() {
   const activeConv = conversations.find((c) => c._id === activeId)
 
   const partner = activeConv
-    ? activeConv.participants?.find((p) => p._id !== user?._id)
+    ? activeConv.participants?.find((p) => (p._id?.toString() || p.toString()) !== (user?._id?.toString() || user?.id?.toString()))
     : null
 
-  // Auto-scroll to bottom like WhatsApp/Telegram
+  // Auto-scroll to bottom
   const scrollToBottom = (smooth = true) => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
@@ -134,116 +215,109 @@ export default function Chat() {
       setTimeout(() => scrollToBottom(true), 30)
     } catch {
       toast.error('Failed to send message')
-      setText(msgContent) // restore on error
+      setText(msgContent)
     } finally {
       setSending(false)
     }
   }
 
   const filteredConvs = conversations.filter((c) => {
-    const p = c.participants?.find((p) => p._id !== user?._id)
+    const p = c.participants?.find((p) => (p._id?.toString() || p.toString()) !== (user?._id?.toString() || user?.id?.toString()))
     return !convSearch || p?.name?.toLowerCase().includes(convSearch.toLowerCase())
   })
 
   // Prepare match dummy for booking from chat
   const handleOpenBooking = () => {
     if (!partner || !activeConv) return
-    const fakeMatch = {
+    setBookingMatch({
       _id: activeConv.match_id || activeConv._id,
-      user_a: { user: user, teaches_skill: user?.skills_teach?.[0]?.skill || 'Programming' },
-      user_b: { user: partner, teaches_skill: partner?.skills_teach?.[0]?.skill || 'Programming' }
-    }
-    setBookingMatch(fakeMatch)
+      user_a: { user: user, teaches_skill: user?.skills_teach?.[0]?.skill },
+      user_b: { user: partner, teaches_skill: partner?.skills_teach?.[0]?.skill },
+    })
   }
 
+  // Grouped message structure for WhatsApp date pills
+  const dateGroups = groupMessagesByDate(messages)
+
   return (
-    <div className="flex h-[calc(100dvh-3.5rem-4rem)] lg:h-[calc(100vh)] w-full overflow-hidden bg-neutral-950 select-none">
-      {/* 1. Conversations List Panel */}
+    <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden bg-neutral-950 font-sans">
+      {/* 1. Left Sidebar: Conversations List */}
       <div
         className={cn(
-          'flex flex-col border-r border-neutral-800 bg-neutral-950 h-full',
-          'w-full md:w-80 lg:w-96 flex-shrink-0',
+          'w-full md:w-80 lg:w-96 flex flex-col border-r border-neutral-800 bg-neutral-900/95 shrink-0 z-10 transition-all',
           activeId ? 'hidden md:flex' : 'flex'
         )}
       >
-        {/* Panel Header */}
-        <div className="px-4 py-3.5 border-b border-neutral-800 shrink-0 bg-neutral-900/50">
-          <h2 className="text-base font-bold text-neutral-100 mb-2.5">Direct Messages</h2>
+        {/* Header */}
+        <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
+          <h1 className="text-lg font-extrabold text-neutral-100">Direct Messages</h1>
+        </div>
+
+        {/* Search */}
+        <div className="p-3 border-b border-neutral-800/60">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
             <input
-              className="w-full pl-9 pr-3 py-2 bg-neutral-900 border border-neutral-800 rounded-xl text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              type="text"
               placeholder="Search chats..."
               value={convSearch}
               onChange={(e) => setConvSearch(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-xl border border-neutral-800 bg-neutral-950 text-xs text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
         </div>
 
-        {/* Scrollable Conversation List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-neutral-800/40 overscroll-contain">
-          {convQ.isLoading && (
-            <div className="p-6 text-xs text-neutral-500 text-center flex flex-col items-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
+        {/* Conversation List */}
+        <div className="flex-1 overflow-y-auto divide-y divide-neutral-800/40">
+          {convQ.isLoading ? (
+            <div className="p-8 text-center text-xs text-neutral-500 flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
               Loading conversations...
             </div>
-          )}
-
-          {filteredConvs.map((conv) => {
-            const p = conv.participants?.find((p) => p._id !== user?._id)
-            const unread = conv.unread_counts?.[user?._id] || 0
-            const isCurrent = conv._id === activeId
-
-            return (
-              <button
-                key={conv._id}
-                onClick={() => setActiveId(conv._id)}
-                className={cn(
-                  'flex items-center gap-3 w-full px-4 py-3.5 text-left transition-colors',
-                  isCurrent
-                    ? 'bg-neutral-900 border-l-4 border-indigo-600'
-                    : 'hover:bg-neutral-900/60'
-                )}
-              >
-                <Avatar src={p?.avatar?.url} name={p?.name} size="md" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-semibold text-neutral-200 truncate">{p?.name || 'SkillSync Peer'}</span>
-                    <span className="text-[10px] text-neutral-500 shrink-0 ml-2">
-                      {conv.last_message?.timestamp ? formatRelativeTime(conv.last_message.timestamp) : ''}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-neutral-400 truncate">
-                      {truncateText(conv.last_message?.content || 'Say hello to start chatting', 38)}
-                    </span>
-                    {unread > 0 && (
-                      <span className="ml-2 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-indigo-600 text-[10px] text-white font-bold shrink-0">
-                        {unread > 9 ? '9+' : unread}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            )
-          })}
-
-          {!convQ.isLoading && filteredConvs.length === 0 && (
-            <div className="flex flex-col items-center justify-center p-8 text-center text-neutral-500">
-              <MessageSquare className="h-8 w-8 mb-2 opacity-40 text-neutral-600" />
-              <p className="text-sm font-medium text-neutral-400">No active conversations</p>
-              <p className="text-xs text-neutral-600 mt-1 mb-4">Accept a match on Discover or Matches to start chatting.</p>
-              <Link to="/discover">
-                <Button size="sm" variant="outline">
-                  <Compass className="h-4 w-4" /> Find matches
-                </Button>
-              </Link>
+          ) : filteredConvs.length === 0 ? (
+            <div className="p-8 text-center text-neutral-500 text-xs">
+              No conversations found
             </div>
+          ) : (
+            filteredConvs.map((conv) => {
+              const other = conv.participants?.find((p) => (p._id?.toString() || p.toString()) !== (user?._id?.toString() || user?.id?.toString()))
+              const isActive = conv._id === activeId
+              const lastMsg = conv.last_message?.content || 'Started a conversation'
+              const time = conv.last_message?.timestamp || conv.updated_at
+
+              return (
+                <button
+                  key={conv._id}
+                  onClick={() => setActiveId(conv._id)}
+                  className={cn(
+                    'w-full p-3.5 text-left flex items-start gap-3 transition-colors relative',
+                    isActive ? 'bg-indigo-950/40 border-l-2 border-indigo-500' : 'hover:bg-neutral-800/50'
+                  )}
+                >
+                  <Avatar src={other?.avatar?.url} name={other?.name} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <p className="text-xs font-bold text-neutral-100 truncate">
+                        {other?.name || 'SkillSync Peer'}
+                      </p>
+                      {time && (
+                        <span className="text-[10px] text-neutral-500 shrink-0">
+                          {formatRelativeTime(time)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-400 truncate leading-relaxed">
+                      {lastMsg}
+                    </p>
+                  </div>
+                </button>
+              )
+            })
           )}
         </div>
       </div>
 
-      {/* 2. WhatsApp/Telegram Locked Chat Stream Area */}
+      {/* 2. Main Chat Area: WhatsApp Style Locked Stream */}
       <div
         className={cn(
           'flex flex-col flex-1 h-full bg-neutral-950 relative overflow-hidden',
@@ -262,7 +336,7 @@ export default function Chat() {
           </div>
         ) : (
           <div className="flex flex-col h-full w-full overflow-hidden">
-            {/* FIXED TOP HEADER (WhatsApp/Telegram style) */}
+            {/* FIXED TOP HEADER */}
             <header className="h-14 px-4 border-b border-neutral-800 bg-neutral-900/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20 shadow-sm">
               <div className="flex items-center gap-3 min-w-0">
                 <button
@@ -297,10 +371,10 @@ export default function Chat() {
               </div>
             </header>
 
-            {/* SCROLLABLE MESSAGE STREAM (ONLY THIS SECTION MOVES) */}
+            {/* SCROLLABLE MESSAGE STREAM */}
             <main
               ref={messagesContainerRef}
-              className="flex-1 overflow-y-auto p-4 sm:px-6 space-y-1 overscroll-contain flex flex-col"
+              className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 overscroll-contain flex flex-col bg-[#0b0f19]"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
               {msgQ.isLoading && (
@@ -310,30 +384,59 @@ export default function Chat() {
                 </div>
               )}
 
-              {/* End-to-end security / peer message badge */}
-              <div className="my-3 flex justify-center">
-                <span className="text-[10px] text-neutral-500 bg-neutral-900 border border-neutral-800/80 px-3 py-1 rounded-full text-center">
+              {/* Peer Security Notice */}
+              <div className="my-2 flex justify-center">
+                <span className="text-[10px] text-neutral-400 bg-neutral-900/90 border border-neutral-800/80 px-3.5 py-1 rounded-full text-center shadow-sm">
                   Direct peer-to-peer messaging with {partner?.name || 'partner'}
                 </span>
               </div>
 
-              {messages.map((msg) => (
-                <MessageBubble
-                  key={msg._id || msg.id || Math.random()}
-                  message={msg}
-                  isOwn={msg.sender === user?._id || msg.sender?._id === user?._id}
-                />
+              {/* Render Messages Grouped by Date (WhatsApp style) */}
+              {dateGroups.map((group) => (
+                <div key={group.date} className="space-y-1">
+                  {/* WhatsApp-Style Date Pill */}
+                  <div className="flex justify-center my-3">
+                    <span className="text-[10px] font-semibold text-neutral-400 bg-neutral-900/90 border border-neutral-800/80 px-3 py-0.5 rounded-full shadow-sm uppercase tracking-wider">
+                      {formatDateHeader(group.date)}
+                    </span>
+                  </div>
+
+                  {group.messages.map((msg, index) => {
+                    const currentSenderId = msg.sender?._id?.toString() || msg.sender?.toString()
+                    const myId = user?._id?.toString() || user?.id?.toString()
+                    const isOwn = currentSenderId === myId
+
+                    const nextMsg = group.messages[index + 1]
+                    const nextSenderId = nextMsg?.sender?._id?.toString() || nextMsg?.sender?.toString()
+                    const isLastInGroup = !nextMsg || nextSenderId !== currentSenderId
+
+                    const prevMsg = group.messages[index - 1]
+                    const prevSenderId = prevMsg?.sender?._id?.toString() || prevMsg?.sender?.toString()
+                    const isFirstInGroup = !prevMsg || prevSenderId !== currentSenderId
+
+                    return (
+                      <MessageBubble
+                        key={msg._id || msg.id || `${group.date}-${index}`}
+                        message={msg}
+                        isOwn={isOwn}
+                        partner={partner}
+                        showAvatar={isLastInGroup}
+                        showSenderName={isFirstInGroup}
+                      />
+                    )
+                  })}
+                </div>
               ))}
 
               <div ref={messagesEndRef} className="h-1" />
             </main>
 
-            {/* FIXED BOTTOM INPUT BAR (WhatsApp/Telegram style) */}
-            <footer className="border-t border-neutral-800 p-2.5 sm:p-3.5 bg-neutral-900/95 backdrop-blur-md shrink-0 z-20">
+            {/* FIXED BOTTOM INPUT BAR (WhatsApp style) */}
+            <footer className="border-t border-neutral-800 p-2.5 sm:p-3 bg-neutral-900/95 backdrop-blur-md shrink-0 z-20">
               <form onSubmit={handleSend} className="flex items-center gap-2 max-w-4xl mx-auto">
                 <input
                   type="text"
-                  className="flex-1 h-10 rounded-2xl border border-neutral-700 bg-neutral-950 px-4 text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                  className="flex-1 h-10 rounded-full border border-neutral-700/80 bg-neutral-950 px-4 text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
                   placeholder="Type a message..."
                   value={text}
                   onChange={(e) => setText(e.target.value)}
@@ -343,7 +446,7 @@ export default function Chat() {
                 <button
                   type="submit"
                   disabled={!text.trim() || sending}
-                  className="h-10 w-10 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0"
+                  className="h-10 w-10 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0"
                   aria-label="Send message"
                 >
                   {sending ? (
