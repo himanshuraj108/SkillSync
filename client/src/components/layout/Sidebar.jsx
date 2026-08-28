@@ -17,6 +17,7 @@ import {
 import { cn } from '@/lib/utils.js'
 import { Avatar } from '@/components/ui/Avatar.jsx'
 import { Badge } from '@/components/ui/Badge.jsx'
+import { Logo } from '@/components/ui/Logo.jsx'
 import { useAuthStore } from '@/store/authStore.js'
 import { useNotificationStore } from '@/store/notificationStore.js'
 import { useThemeStore } from '@/store/themeStore.js'
@@ -61,23 +62,8 @@ export function Sidebar() {
     <aside className="hidden lg:flex fixed inset-y-0 left-0 z-40 h-full w-64 flex-col border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 transition-colors">
       {/* ── Brand Logo Header ──────────────────────────────────────── */}
       <div className="flex h-16 items-center justify-between px-5 border-b border-neutral-200 dark:border-neutral-800">
-        <Link to="/dashboard" className="flex items-center gap-2.5 group">
-          <div className="h-8 w-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-base tracking-tight text-neutral-900 dark:text-white">
-                SkillSync
-              </span>
-              <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
-                P2P
-              </span>
-            </div>
-            <p className="text-[10px] text-neutral-400 font-medium leading-none mt-0.5">
-              Knowledge Network
-            </p>
-          </div>
+        <Link to="/dashboard" className="flex items-center">
+          <Logo size="md" showBadge={true} />
         </Link>
       </div>
 

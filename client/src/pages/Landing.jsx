@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, ArrowLeft, Sun, Moon, Sparkles } from 'lucide-react'
 import { useInView } from 'react-intersection-observer'
 import { Button } from '@/components/ui/Button.jsx'
+import { Logo } from '@/components/ui/Logo.jsx'
 import { useThemeStore } from '@/store/themeStore.js'
 
 export default function Landing() {
@@ -16,12 +17,9 @@ export default function Landing() {
     <div className="min-h-screen bg-slate-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans selection:bg-indigo-500/30 transition-colors">
       {/* ── Top Navigation Bar ──────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-white/90 dark:bg-neutral-950/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800">
-        <div className="flex items-center gap-2 font-extrabold text-xl tracking-tight text-neutral-900 dark:text-white">
-          <div className="h-8 w-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <span>SkillSync</span>
-        </div>
+        <Link to="/" className="flex items-center">
+          <Logo size="md" />
+        </Link>
 
         <div className="flex items-center gap-3">
           {/* Light / Dark Mode Toggle Button */}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Bell, ArrowLeftRight, LogOut, User, Settings, Sun, Moon, Sparkles } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar.jsx'
+import { Logo } from '@/components/ui/Logo.jsx'
 import { useAuthStore } from '@/store/authStore.js'
 import { useNotificationStore } from '@/store/notificationStore.js'
 import { useThemeStore } from '@/store/themeStore.js'
@@ -27,13 +28,8 @@ export function Navbar() {
       className="fixed top-0 inset-x-0 z-40 flex h-14 items-center justify-between border-b px-4 lg:hidden"
       style={{ backgroundColor: 'rgb(var(--bg))', borderColor: 'rgb(var(--border))' }}
     >
-      <Link to="/dashboard" className="flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 shadow-sm">
-          <ArrowLeftRight className="h-4 w-4 text-white" />
-        </div>
-        <span className="text-sm font-bold tracking-tight" style={{ color: 'rgb(var(--text-primary))' }}>
-          SkillSync
-        </span>
+      <Link to="/dashboard" className="flex items-center">
+        <Logo size="sm" />
       </Link>
 
       <div className="flex items-center gap-1.5">

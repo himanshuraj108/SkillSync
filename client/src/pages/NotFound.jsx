@@ -1,19 +1,15 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Compass, LayoutDashboard, Calendar, Sparkles, Home } from 'lucide-react'
 import { Button } from '@/components/ui/Button.jsx'
+import { Logo } from '@/components/ui/Logo.jsx'
 
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-neutral-950 flex flex-col items-center justify-center px-6 py-12 selection:bg-indigo-500/30">
       <div className="card-shine max-w-lg w-full rounded-3xl p-8 sm:p-10 text-center shadow-2xl space-y-6">
         {/* Brand Header */}
-        <div className="flex items-center justify-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-md">
-            ⇄
-          </div>
-          <span className="font-extrabold text-base tracking-tight text-neutral-900 dark:text-white">
-            SkillSync
-          </span>
+        <div className="flex items-center justify-center">
+          <Logo size="md" />
         </div>
 
         {/* 404 Visual Indicator */}

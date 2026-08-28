@@ -4,6 +4,7 @@ import { CheckCircle2, XCircle, RefreshCw, ArrowRight, ShieldCheck, Mail, ArrowL
 import { verifyEmail, resendVerification, getMe } from '@/services/auth.service.js'
 import { useAuthStore } from '@/store/authStore.js'
 import { Button } from '@/components/ui/Button.jsx'
+import { Logo } from '@/components/ui/Logo.jsx'
 import { notify } from '@/lib/notify.jsx'
 
 export default function VerifyEmail() {
@@ -88,13 +89,8 @@ export default function VerifyEmail() {
 
       <div className="w-full max-w-lg z-10 space-y-6">
         {/* Brand Header */}
-        <div className="flex items-center justify-center gap-2.5">
-          <div className="h-9 w-9 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-base shadow-lg shadow-indigo-600/30">
-            <ArrowLeftRight className="h-4 w-4" />
-          </div>
-          <span className="font-extrabold text-xl tracking-tight text-neutral-900 dark:text-white">
-            SkillSwap
-          </span>
+        <div className="flex items-center justify-center">
+          <Logo size="lg" />
         </div>
 
         {/* Status Card Container */}

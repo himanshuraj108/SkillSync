@@ -1,6 +1,7 @@
 import { Link, Outlet } from 'react-router-dom'
 import { Sparkles, Moon, Sun, ArrowRight, ArrowLeft } from 'lucide-react'
 import { useThemeStore } from '@/store/themeStore.js'
+import { Logo } from '@/components/ui/Logo.jsx'
 
 export function AuthLayout({ children }) {
   const content = children || <Outlet />
@@ -15,18 +16,8 @@ export function AuthLayout({ children }) {
         <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Brand Header */}
-        <Link to="/" className="flex items-center gap-2.5 group relative z-10">
-          <div className="h-8 w-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <div>
-            <span className="font-extrabold text-base tracking-tight text-neutral-900 dark:text-white">
-              SkillSync
-            </span>
-            <span className="text-[9px] font-black uppercase tracking-wider ml-1.5 px-1.5 py-0.2 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
-              P2P
-            </span>
-          </div>
+        <Link to="/" className="flex items-center relative z-10">
+          <Logo size="md" showBadge={true} />
         </Link>
 
         {/* Main Content & Interactive Match Preview */}
@@ -119,13 +110,8 @@ export function AuthLayout({ children }) {
         {/* Form Container Card */}
         <div className="w-full max-w-md card-shine p-6 sm:p-9 rounded-3xl shadow-2xl relative z-10 my-auto">
           {/* Mobile Logo */}
-          <div className="flex items-center gap-2 mb-6 lg:hidden">
-            <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-              <Sparkles className="h-3.5 w-3.5" />
-            </div>
-            <span className="text-sm font-extrabold tracking-tight text-neutral-900 dark:text-white">
-              SkillSync
-            </span>
+          <div className="flex items-center mb-6 lg:hidden">
+            <Logo size="sm" />
           </div>
 
           {content}
