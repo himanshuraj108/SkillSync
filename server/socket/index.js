@@ -9,9 +9,22 @@ let io;
 const onlineUsers = new Map();
 
 const setupSocket = (httpServer) => {
+    const allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://skillsync-seven-sable.vercel.app',
+        (process.env.CLIENT_URL || '').replace(/\/$/, '')
+    ].filter(Boolean);
+
     io = new Server(httpServer, {
         cors: {
-            origin: process.env.CLIENT_URL,
+            origin: (origin, callback) => {
+                if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+                    callback(null, true);
+                } else {
+                    callback(null, true);
+                }
+            },
             methods: ['GET', 'POST'],
             credentials: true
         }
