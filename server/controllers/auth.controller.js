@@ -90,15 +90,8 @@ export const login = async (req, res, next) => {
         const normalizedEmail = (email || '').trim().toLowerCase();
         
         const user = await User.findOne({ email: normalizedEmail }).select('+password');
-        if (!user) {
+        if (!user || user.is_active === false) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-
-        if (user.is_active === false) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'This account has been deleted. You can register a new account or contact support.' 
-            });
         }
 
         const isMatch = await user.comparePassword(password);
@@ -185,17 +178,10 @@ export const forgotPassword = async (req, res, next) => {
     try {
         const { email } = req.body;
         const normalizedEmail = (email || '').trim().toLowerCase();
-        const user = await User.findOne({ email: normalizedEmail });
+        const user = await User.findOne({ email: normalizedEmail, is_active: true });
         
         if (!user) {
             return res.status(404).json({ success: false, message: 'No account exists with this email address.' });
-        }
-
-        if (user.is_active === false) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'This account has been deleted. Password reset is not available. Please register a new account.' 
-            });
         }
 
         const resetToken = crypto.randomBytes(32).toString('hex');
