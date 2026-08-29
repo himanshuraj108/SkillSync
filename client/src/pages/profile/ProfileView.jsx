@@ -79,11 +79,20 @@ export default function ProfileView() {
     enabled: !!profileId,
   })
 
+  const [directVerifyUrl, setDirectVerifyUrl] = useState(null)
+
   const handleResendVerification = async () => {
     setResending(true)
     try {
-      await resendVerification()
-      notify.success(`A verification email has been sent to ${profile?.email || user?.email}.`, 'Link Delivered')
+      const res = await resendVerification()
+      const url = res?.data?.verifyUrl || res?.verifyUrl
+      if (url) {
+        setDirectVerifyUrl(url)
+      }
+      notify.success(
+        `Verification email sent to ${profile?.email || user?.email}. Check Inbox or Spam.`,
+        'Link Sent'
+      )
     } catch (err) {
       notify.error(err.message || 'Failed to send verification link.', 'Error')
     } finally {
@@ -223,16 +232,37 @@ export default function ProfileView() {
 
       {/* Unverified Account Banner for Owner */}
       {isOwnProfile && !profile.is_email_verified && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-xs">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-8 w-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 shrink-0">
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs shadow-xs">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 shrink-0 mt-0.5">
               <Mail className="h-4 w-4" />
             </div>
-            <div className="text-left">
-              <p className="font-bold text-neutral-900 dark:text-amber-100">Verify your email address</p>
-              <p className="text-neutral-600 dark:text-amber-200/80 mt-0.5">
-                Your account is currently unverified. Click below to receive a verification link in your inbox.
+            <div className="text-left space-y-1">
+              <p className="font-bold text-neutral-900 dark:text-amber-100 text-sm">Verify your email address</p>
+              <p className="text-neutral-600 dark:text-amber-200/80">
+                Your account is currently unverified. Click below to receive a link or verify instantly:
               </p>
+              {directVerifyUrl && (
+                <div className="flex items-center gap-2 pt-1">
+                  <a
+                    href={directVerifyUrl}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-xs"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Verify Account Now (1-Click)
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(directVerifyUrl)
+                      notify.success('Verification link copied to clipboard!', 'Copied')
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold transition-colors"
+                  >
+                    Copy Link
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <Button
@@ -242,7 +272,7 @@ export default function ProfileView() {
             className="shrink-0 text-xs font-bold bg-amber-500 text-neutral-950 hover:bg-amber-400 border-none shadow-xs h-8"
           >
             <RefreshCw className="h-3 w-3 mr-1" />
-            Send verification link
+            {directVerifyUrl ? 'Resend email' : 'Send verification link'}
           </Button>
         </div>
       )}
