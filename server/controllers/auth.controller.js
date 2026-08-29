@@ -18,16 +18,20 @@ export const register = async (req, res, next) => {
             availability
         } = req.body;
         
-        const existingUser = await User.findOne({ email });
+        const normalizedEmail = (email || '').trim().toLowerCase();
+        const existingUser = await User.findOne({ email: normalizedEmail });
         if (existingUser) {
-            return res.status(400).json({ success: false, message: 'Email already registered' });
+            return res.status(400).json({ 
+                success: false, 
+                message: 'This email is already registered. Please log in instead or use another email.' 
+            });
         }
 
         const verificationToken = crypto.randomBytes(32).toString('hex');
         
         const user = await User.create({
             name,
-            email,
+            email: normalizedEmail,
             password,
             role: role || 'student',
             institution: institution || '',
@@ -271,6 +275,25 @@ export const resendVerification = async (req, res, next) => {
 export const getMe = async (req, res, next) => {
     try {
         res.status(200).json({ success: true, data: req.user.toPublicJSON() });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const checkEmail = async (req, res, next) => {
+    try {
+        const rawEmail = req.query.email || req.body.email || '';
+        const email = rawEmail.trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+        const user = await User.findOne({ email });
+        return res.status(200).json({
+            success: true,
+            available: !user,
+            is_email_verified: user ? user.is_email_verified : null,
+            message: user ? 'This email is already registered.' : 'Email is available'
+        });
     } catch (error) {
         next(error);
     }

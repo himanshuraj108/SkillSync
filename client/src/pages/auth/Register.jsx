@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Check, Plus, X, Eye, EyeOff } from 'lucide-react'
-import { register as registerApi } from '@/services/auth.service.js'
+import { register as registerApi, checkEmailAvailability } from '@/services/auth.service.js'
 import { useAuthStore } from '@/store/authStore.js'
 import { Button } from '@/components/ui/Button.jsx'
 import { Input } from '@/components/ui/Input.jsx'
@@ -71,16 +71,58 @@ export default function Register() {
     })
   }
 
+  const handleStep1Next = async () => {
+    setError('')
+    const trimmedEmail = (form.email || '').trim().toLowerCase()
+    if (!form.name.trim()) {
+      setError('Please enter your full name.')
+      return
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    if (form.password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+    if (form.password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await checkEmailAvailability(trimmedEmail)
+      if (res && res.available === false) {
+        setError('This email is already registered. Please log in instead or use another email.')
+        setLoading(false)
+        return
+      }
+      setStep(2)
+    } catch (_) {
+      // Allow proceeding if network check fails
+      setStep(2)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async () => {
     setLoading(true); setError('')
     try {
       const availability = Object.entries(avail).map(([day, times]) => ({ day, ...times }))
-      const res = await registerApi({ ...form, availability })
+      const res = await registerApi({ ...form, email: form.email.trim().toLowerCase(), availability })
       const userData = res?.data || res?.user || res
       setUser(userData)
       navigate('/dashboard')
     } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.')
+      const msg = err.message || 'Registration failed. Please try again.'
+      setError(msg)
+      if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exist')) {
+        setStep(1)
+      }
     } finally {
       setLoading(false)
     }
@@ -116,8 +158,16 @@ export default function Register() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-800/60 bg-red-900/20 px-4 py-3">
-          <p className="text-sm text-red-400">{error}</p>
+        <div className="mb-4 rounded-xl border border-red-800/60 bg-red-900/20 px-4 py-3.5 flex items-center justify-between gap-3">
+          <p className="text-xs sm:text-sm text-red-300 leading-relaxed">{error}</p>
+          {(error.toLowerCase().includes('already registered') || error.toLowerCase().includes('log in')) && (
+            <Link
+              to={`/auth/login?email=${encodeURIComponent(form.email.trim())}`}
+              className="shrink-0 text-xs font-bold text-indigo-300 hover:text-white bg-indigo-950/80 border border-indigo-600/60 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Log in →
+            </Link>
+          )}
         </div>
       )}
 
@@ -246,9 +296,11 @@ export default function Register() {
           />
 
           <Button
-            className="w-full mt-2"
-            onClick={() => setStep(2)}
+            className="w-full mt-2 font-bold"
+            onClick={handleStep1Next}
+            loading={loading}
             disabled={
+              loading ||
               !form.name.trim() ||
               !form.email.trim() ||
               form.password.length < 8 ||
@@ -256,7 +308,7 @@ export default function Register() {
               !passwordsMatch
             }
           >
-            Continue
+            Continue to Skills →
           </Button>
 
           <p className="text-center text-sm text-neutral-600">

@@ -45,6 +45,10 @@ export const resendVerification = async () => {
   return api.post('/auth/resend-verification')
 }
 
+export const checkEmailAvailability = async (email) => {
+  return api.get(`/auth/check-email?email=${encodeURIComponent(email)}`)
+}
+
 export const getMe = async () => {
   return api.get('/auth/me')
 }
