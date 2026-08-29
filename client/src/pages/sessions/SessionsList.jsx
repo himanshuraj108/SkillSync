@@ -202,19 +202,11 @@ export default function SessionsList() {
             Manage your booked 1-on-1 skill exchange meetings
           </p>
         </div>
-        {user?.is_email_verified ? (
-          <Link to="/matches" className="shrink-0">
-            <Button size="sm" className="h-8 px-3 text-xs whitespace-nowrap shadow-sm">
-              <Plus className="h-3.5 w-3.5 mr-1" /> Book session
-            </Button>
-          </Link>
-        ) : (
-          <Link to="/profile/me" className="shrink-0">
-            <Button size="sm" className="h-8 px-3 text-xs whitespace-nowrap bg-amber-500 text-neutral-950 hover:bg-amber-400 font-bold border-none shadow-sm">
-              <ShieldAlert className="h-3.5 w-3.5 mr-1" /> Verify Email First
-            </Button>
-          </Link>
-        )}
+        <Link to="/matches" className="shrink-0">
+          <Button size="sm" className="h-8 px-3 text-xs whitespace-nowrap shadow-sm">
+            <Plus className="h-3.5 w-3.5 mr-1" /> Book session
+          </Button>
+        </Link>
       </div>
 
       {/* Live sessions alert banner */}

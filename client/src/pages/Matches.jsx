@@ -48,23 +48,14 @@ function MatchListItem({ match, currentUserId, isEmailVerified, onAccept, onDecl
               </Button>
             </Link>
 
-            {isEmailVerified ? (
-              <Button
-                size="sm"
-                className="flex-1 sm:flex-none w-full sm:w-auto"
-                onClick={() => onBookSession(match)}
-              >
-                <Calendar className="h-4 w-4" />
-                Book session
-              </Button>
-            ) : (
-              <Link to="/profile/me" className="flex-1 sm:flex-none">
-                <Button size="sm" className="w-full sm:w-auto bg-amber-500 text-neutral-950 hover:bg-amber-400 font-bold border-none">
-                  <ShieldAlert className="h-4 w-4" />
-                  Verify Email First
-                </Button>
-              </Link>
-            )}
+            <Button
+              size="sm"
+              className="flex-1 sm:flex-none w-full sm:w-auto"
+              onClick={() => onBookSession(match)}
+            >
+              <Calendar className="h-4 w-4" />
+              Book session
+            </Button>
           </>
         )}
 

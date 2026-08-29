@@ -140,23 +140,13 @@ export default function ProfileView() {
                     {profile.name}
                   </h1>
 
-                  {profile.is_email_verified ? (
-                    <span
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-xs"
-                      title="Verified Account"
-                    >
-                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                      <span>Verified</span>
-                    </span>
-                  ) : (
-                    <span
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shadow-xs"
-                      title="Unverified Account"
-                    >
-                      <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-                      <span>Unverified</span>
-                    </span>
-                  )}
+                  <span
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-xs"
+                    title="Verified Account"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Verified</span>
+                  </span>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 mt-1.5 text-xs text-neutral-500">
@@ -223,31 +213,6 @@ export default function ProfileView() {
           </div>
         </div>
       
-      {/* Unverified Account Banner for Owner */}
-      {isOwnProfile && !profile.is_email_verified && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-xs">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-8 w-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 shrink-0">
-              <Mail className="h-4 w-4" />
-            </div>
-            <div className="text-left">
-              <p className="font-bold text-neutral-900 dark:text-amber-100">Verify your email address</p>
-              <p className="text-neutral-600 dark:text-amber-200/80 mt-0.5">
-                Your account is currently unverified. Click below to receive a verification link in your inbox.
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            onClick={handleResendVerification}
-            loading={resending}
-            className="shrink-0 text-xs font-bold bg-amber-500 text-neutral-950 hover:bg-amber-400 border-none shadow-xs h-8"
-          >
-            <RefreshCw className="h-3 w-3 mr-1" />
-            Send verification link
-          </Button>
-        </div>
-      )}
       </div>
 
       {/* Skills Sections */}

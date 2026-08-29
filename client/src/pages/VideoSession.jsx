@@ -118,7 +118,7 @@ export default function VideoSession() {
   const { data: sessionData } = useQuery({
     queryKey: ['session', sessionId],
     queryFn: () => getSession(sessionId),
-    enabled: !!sessionId && !!user?.is_email_verified,
+    enabled: !!sessionId,
   })
   const session = sessionData?.data || sessionData
 
@@ -270,14 +270,14 @@ export default function VideoSession() {
   }, [socket, sessionId, user?._id, hasLeftMeeting])
 
   useEffect(() => {
-    if (user?.is_email_verified && !hasLeftMeeting) {
+    if (!hasLeftMeeting) {
       startMedia()
     }
     return () => {
       stopAllMedia()
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [user?.is_email_verified, hasLeftMeeting, startMedia, stopAllMedia])
+  }, [hasLeftMeeting, startMedia, stopAllMedia])
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -380,33 +380,6 @@ export default function VideoSession() {
     const m = Math.floor(s / 60)
     const sec = s % 60
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
-  }
-
-  // Email unverified protection
-  if (!user?.is_email_verified) {
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
-        <div className="card-shine max-w-md w-full rounded-3xl p-8 text-center shadow-2xl space-y-5">
-          <div className="h-16 w-16 rounded-2xl bg-amber-950/80 border border-amber-700/80 flex items-center justify-center text-amber-500 mx-auto shadow-md">
-            <ShieldAlert className="h-9 w-9 stroke-[2.2]" />
-          </div>
-          <div>
-            <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-950 text-amber-400 border border-amber-800 mb-2">
-              Verification Required
-            </span>
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">Cannot Attend Session</h2>
-            <p className="text-xs text-neutral-400 mt-2 leading-relaxed max-w-xs mx-auto">
-              Please verify your email ({user?.email}) before entering live video rooms.
-            </p>
-          </div>
-          <Link to="/profile/me">
-            <Button size="lg" className="w-full font-bold text-xs h-10 bg-amber-500 hover:bg-amber-400 text-neutral-950">
-              Verify Email Address <ArrowRight className="h-4 w-4 ml-1.5" />
-            </Button>
-          </Link>
-        </div>
-      </div>
-    )
   }
 
   // SCREEN WHEN USER LEAVES MEETING: GREEN (RE-JOIN) & RED (END)

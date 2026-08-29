@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema({
         sessions_completed: { type: Number, default: 0 },
         no_shows: { type: Number, default: 0 }
     },
-    is_email_verified: { type: Boolean, default: false },
+    is_email_verified: { type: Boolean, default: true },
     email_verification_token: { type: String, select: false },
     password_reset_token: { type: String, select: false },
     password_reset_expires: { type: Date, select: false },

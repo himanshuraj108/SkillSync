@@ -32,8 +32,6 @@ export const register = async (req, res, next) => {
             }
         }
 
-        const verificationToken = crypto.randomBytes(32).toString('hex');
-        
         const user = await User.create({
             name,
             email: normalizedEmail,
@@ -45,19 +43,11 @@ export const register = async (req, res, next) => {
             skills_teach: Array.isArray(skills_teach) ? skills_teach : [],
             skills_learn: Array.isArray(skills_learn) ? skills_learn : [],
             availability: Array.isArray(availability) ? availability : [],
-            email_verification_token: verificationToken
+            is_email_verified: true
         });
 
-        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-        console.log(`[NEW REGISTRATION EMAIL] Recipient: ${email} | Verify URL: ${clientUrl}/verify-email?token=${verificationToken}`);
-
-        // Dispatch verification & welcome emails in the background
-        sendVerificationEmail(email, name, verificationToken).catch(err => {
-            console.error('Verification email error:', err.message);
-        });
-        sendWelcomeEmail(email, name).catch(err => {
-            console.error('Welcome email error:', err.message);
-        });
+        // Send welcome email in background (non-blocking)
+        sendWelcomeEmail(email, name).catch(() => {});
 
         const accessToken = generateAccessToken(user._id);
         const refreshToken = generateRefreshToken(user._id);

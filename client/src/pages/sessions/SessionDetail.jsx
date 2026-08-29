@@ -163,26 +163,7 @@ export default function SessionDetail() {
       {/* ACTION & CONNECT BAR */}
       {isParticipant && (
         <div className="mb-8">
-          {!user?.is_email_verified ? (
-            <div className="p-5 sm:p-6 rounded-3xl border border-amber-500/30 bg-amber-950/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-start gap-3.5">
-                <div className="h-10 w-10 rounded-2xl bg-amber-900/60 border border-amber-700/50 flex items-center justify-center text-amber-400 shrink-0">
-                  <ShieldAlert className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-amber-100 text-sm">Email verification required</h3>
-                  <p className="text-xs text-amber-300/80 mt-0.5 max-w-md">
-                    Please verify your email ({user?.email}) before attending or hosting live video sessions.
-                  </p>
-                </div>
-              </div>
-              <Link to="/profile/me" className="shrink-0 w-full sm:w-auto">
-                <Button size="sm" className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs h-10">
-                  Verify Email Now
-                </Button>
-              </Link>
-            </div>
-          ) : isLive ? (
+          {isLive ? (
             <div className="p-6 rounded-3xl border-2 border-emerald-500/60 bg-emerald-950/40 flex flex-col sm:flex-row items-center justify-between gap-5 shadow-2xl shadow-emerald-950/50">
               <div className="flex items-center gap-3.5">
                 <span className="h-4 w-4 rounded-full bg-emerald-400 animate-ping shrink-0" />

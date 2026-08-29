@@ -10,13 +10,6 @@ import { uploadToCloudinary } from '../config/cloudinary.js';
 
 export const createSession = async (req, res, next) => {
     try {
-        if (!req.user.is_email_verified) {
-            return res.status(403).json({
-                success: false,
-                message: 'Email verification required. Please verify your email before creating or scheduling sessions.'
-            });
-        }
-
         const { match_id, teacher_id, learner_id, skill, title, description, scheduled_at, duration_minutes } = req.body;
 
         const match = await Match.findById(match_id);

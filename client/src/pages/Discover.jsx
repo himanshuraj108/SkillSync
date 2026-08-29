@@ -49,9 +49,6 @@ export default function Discover() {
 
   const requestMutation = useMutation({
     mutationFn: (match) => {
-      if (!user?.is_email_verified) {
-        return Promise.reject({ message: 'UNVERIFIED' })
-      }
       return sendMatchRequest({
         targetUserId: match.partner_id || match._id || match.user?._id,
         intro_message: `Hi! I would love to swap skills with you.`
@@ -64,11 +61,7 @@ export default function Discover() {
       queryClient.invalidateQueries({ queryKey: ['matches'] })
     },
     onError: (err) => {
-      if (err.message === 'UNVERIFIED') {
-        notify.warning('Verify your email first to send swap requests.', 'Email Not Verified', { href: '/profile/me', label: 'Verify now' })
-      } else {
-        notify.error(err.message || 'Failed to send swap request.', 'Request Error')
-      }
+      notify.error(err.message || 'Failed to send swap request.', 'Request Error')
     },
   })
 
