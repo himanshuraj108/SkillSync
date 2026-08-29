@@ -1,48 +1,62 @@
-import nodemailer from 'nodemailer';
+﻿import nodemailer from 'nodemailer';
 
 let pooledTransporter = null;
 
-const getTransporter = () => {
-    if (!pooledTransporter) {
-        const isCustomHost = !!process.env.SMTP_HOST && process.env.SMTP_HOST !== 'smtp.gmail.com';
-        const transportConfig = isCustomHost
-            ? {
-                host: process.env.SMTP_HOST,
-                port: Number(process.env.SMTP_PORT) || 587,
-                secure: false, // Port 587 uses STARTTLS
-                pool: true,
-                maxConnections: 5,
-                maxMessages: 100,
-                connectionTimeout: 10000,
-                greetingTimeout: 5000,
-                socketTimeout: 15000,
-                auth: {
-                    user: process.env.SMTP_USER,
-                    pass: process.env.SMTP_PASS
-                }
-            }
-            : {
-                service: 'gmail',
-                pool: true,
-                maxConnections: 5,
-                maxMessages: 100,
-                connectionTimeout: 10000,
-                greetingTimeout: 5000,
-                socketTimeout: 15000,
-                auth: {
-                    user: process.env.SMTP_USER,
-                    pass: process.env.SMTP_PASS
-                }
-            };
+const createTransporter = () => {
+    // Always use Gmail service â€” verified working. Brevo SMTP relay requires
+    // IP whitelisting (paid plan) and returned 525 Unauthorized for this server.
+    return nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+        },
+        pool: true,
+        maxConnections: 3,
+        maxMessages: 50,
+        connectionTimeout: 15000,
+        socketTimeout: 20000
+    });
+};
 
-        pooledTransporter = nodemailer.createTransport(transportConfig);
+const getTransporter = async () => {
+    if (!pooledTransporter) {
+        pooledTransporter = createTransporter();
+        try {
+            await pooledTransporter.verify();
+            console.log('[Email] SMTP connection verified â€” Gmail ready');
+        } catch (err) {
+            console.error('[Email] SMTP verify failed, resetting:', err.message);
+            pooledTransporter = null;
+            throw err;
+        }
     }
     return pooledTransporter;
 };
 
+// Reset cached transporter (called if a send fails with auth error)
+const resetTransporter = () => { pooledTransporter = null; };
+
 const getFromAddress = () => {
     return process.env.EMAIL_FROM || `"SkillSync" <${process.env.SMTP_USER}>`;
 };
+
+// Wrapper that auto-retries once on connection failure
+const sendWithRetry = async (mailOptions) => {
+    try {
+        const t = await getTransporter();
+        return await t.sendMail(mailOptions);
+    } catch (err) {
+        if (err.code === 'ECONNECTION' || err.code === 'ETIMEDOUT' || err.responseCode === 535) {
+            console.warn('[Email] Connection error, retrying with fresh transporter:', err.message);
+            resetTransporter();
+            const t = await getTransporter();
+            return await t.sendMail(mailOptions);
+        }
+        throw err;
+    }
+};
+
 
 /**
  * Reusable Luxury Production Email Frame (Stripe / Linear / Vercel style)
@@ -92,7 +106,7 @@ const renderEmailFrame = ({ previewText, title, badge, contentHtml, ctaText, cta
                                 <table border="0" cellpadding="0" cellspacing="0">
                                     <tr>
                                         <td style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); width: 44px; height: 44px; border-radius: 12px; text-align: center; vertical-align: middle; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.35);">
-                                            <span style="color: #ffffff; font-size: 22px; font-weight: 900; line-height: 44px; display: inline-block;">⇄</span>
+                                            <span style="color: #ffffff; font-size: 22px; font-weight: 900; line-height: 44px; display: inline-block;">â‡„</span>
                                         </td>
                                         <td style="padding-left: 12px; text-align: left;">
                                             <span style="font-size: 20px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px; display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">SkillSync</span>
@@ -145,7 +159,7 @@ const renderEmailFrame = ({ previewText, title, badge, contentHtml, ctaText, cta
                                     <tr>
                                         <td align="center">
                                             <a class="cta-button" href="${ctaUrl}" target="_blank" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: #ffffff; font-size: 14px; font-weight: 800; border-radius: 12px; text-decoration: none; letter-spacing: 0.2px; box-shadow: 0 4px 18px rgba(79, 70, 229, 0.4); text-align: center;">
-                                                ${ctaText} →
+                                                ${ctaText} â†’
                                             </a>
                                         </td>
                                     </tr>
@@ -186,10 +200,10 @@ const renderEmailFrame = ({ previewText, title, badge, contentHtml, ctaText, cta
             <tr>
                 <td style="padding-top: 24px; text-align: center; font-size: 12px; color: #475569; line-height: 1.6;">
                     <p style="margin: 0 0 6px 0;">
-                        SkillSync · Pure Peer-to-Peer Knowledge Exchange
+                        SkillSync Â· Pure Peer-to-Peer Knowledge Exchange
                     </p>
                     <p style="margin: 0;">
-                        Zero Fees · Open Education for University Students & Professors
+                        Zero Fees Â· Open Education for University Students & Professors
                     </p>
                 </td>
             </tr>
@@ -204,8 +218,7 @@ const renderEmailFrame = ({ previewText, title, badge, contentHtml, ctaText, cta
  * 1. Verification Email
  */
 export const sendVerificationEmail = async (to, name = 'there', token) => {
-    const transporter = getTransporter();
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const verifyUrl = `${clientUrl}/verify-email?token=${token}`;
 
     const text = `Hi ${name},\n\nWelcome to SkillSync! Please verify your account by clicking the link below:\n\n${verifyUrl}\n\nThis link is valid for 24 hours.\n\nBest,\nThe SkillSync Team`;
@@ -224,7 +237,7 @@ export const sendVerificationEmail = async (to, name = 'there', token) => {
         securityNote: 'This verification link is valid for 24 hours. If you did not create a SkillSync account, please disregard this email.'
     });
 
-    return transporter.sendMail({
+    return sendWithRetry({
         from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
@@ -242,8 +255,7 @@ export const sendVerificationEmail = async (to, name = 'there', token) => {
  * 2. Thank You for Registering / Welcome Email
  */
 export const sendWelcomeEmail = async (to, name = 'there') => {
-    const transporter = getTransporter();
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
     const text = `Welcome to SkillSync, ${name}!\n\nWhere knowledge is the only currency.\nExplore matches: ${clientUrl}/discover`;
 
@@ -252,7 +264,7 @@ export const sendWelcomeEmail = async (to, name = 'there') => {
         badge: 'Getting Started',
         title: `You're ready to swap skills, ${name.split(' ')[0]}!`,
         contentHtml: `
-            <p style="margin-top: 0;">Thank you for registering on <strong>SkillSync</strong> — where knowledge is the only currency.</p>
+            <p style="margin-top: 0;">Thank you for registering on <strong>SkillSync</strong> â€” where knowledge is the only currency.</p>
             <div style="background: #0b0f19; border: 1px solid #1e293b; border-radius: 12px; padding: 18px; margin: 20px 0;">
                 <p style="margin: 0 0 10px 0; font-weight: 700; color: #f1f5f9;">3 Steps to your first 1-on-1 swap:</p>
                 <div style="font-size: 13px; color: #94a3b8; line-height: 1.6;">
@@ -267,7 +279,7 @@ export const sendWelcomeEmail = async (to, name = 'there') => {
         securityNote: 'You can update your notification preferences anytime in your Profile Settings.'
     });
 
-    return transporter.sendMail({
+    return sendWithRetry({
         from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
@@ -281,8 +293,7 @@ export const sendWelcomeEmail = async (to, name = 'there') => {
  * 3. Match Request Alert Email
  */
 export const sendMatchRequestEmail = async (to, recipientName, senderName, teachSkill, learnSkill) => {
-    const transporter = getTransporter();
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
     const text = `Hi ${recipientName},\n\n${senderName} wants to exchange skills with you on SkillSync!\nThey teach: ${teachSkill}\nThey want to learn: ${learnSkill}\n\nView request: ${clientUrl}/matches`;
 
@@ -310,7 +321,7 @@ export const sendMatchRequestEmail = async (to, recipientName, senderName, teach
         ctaUrl: `${clientUrl}/matches`
     });
 
-    return transporter.sendMail({
+    return sendWithRetry({
         from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
@@ -324,8 +335,7 @@ export const sendMatchRequestEmail = async (to, recipientName, senderName, teach
  * 4. Match Accepted Notification Email
  */
 export const sendMatchAcceptedEmail = async (to, name, partnerName, teachSkill, learnSkill) => {
-    const transporter = getTransporter();
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
     const text = `Hi ${name},\n\nGreat news! ${partnerName} accepted your swap invitation on SkillSync!\nStart chatting: ${clientUrl}/chat`;
 
@@ -341,7 +351,7 @@ export const sendMatchAcceptedEmail = async (to, name, partnerName, teachSkill, 
         ctaUrl: `${clientUrl}/chat`
     });
 
-    return transporter.sendMail({
+    return sendWithRetry({
         from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
@@ -355,8 +365,7 @@ export const sendMatchAcceptedEmail = async (to, name, partnerName, teachSkill, 
  * 5. Session Scheduled Confirmation Email
  */
 export const sendSessionScheduledEmail = async (to, name, partnerName, sessionDetails) => {
-    const transporter = getTransporter();
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const dateFormatted = new Date(sessionDetails.scheduled_at).toLocaleString('en-US', {
         weekday: 'short',
         month: 'short',
@@ -396,7 +405,7 @@ export const sendSessionScheduledEmail = async (to, name, partnerName, sessionDe
         ctaUrl: `${clientUrl}/sessions/${sessionDetails._id || ''}`
     });
 
-    return transporter.sendMail({
+    return sendWithRetry({
         from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
@@ -410,8 +419,7 @@ export const sendSessionScheduledEmail = async (to, name, partnerName, sessionDe
  * 6. Session Reminder (24h / 30m) Email
  */
 export const sendSessionReminderEmail = async (to, sessionDetails) => {
-    const transporter = getTransporter();
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const dateFormatted = new Date(sessionDetails.scheduled_at).toLocaleString('en-US', {
         weekday: 'short',
         month: 'short',
@@ -435,7 +443,7 @@ export const sendSessionReminderEmail = async (to, sessionDetails) => {
         ctaUrl: `${clientUrl}/sessions/${sessionDetails._id || ''}`
     });
 
-    return transporter.sendMail({
+    return sendWithRetry({
         from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
@@ -449,8 +457,7 @@ export const sendSessionReminderEmail = async (to, sessionDetails) => {
  * 7. Session Completed / Review Reminder Email
  */
 export const sendSessionCompletedEmail = async (to, name, partnerName, sessionDetails) => {
-    const transporter = getTransporter();
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
     const text = `Hi ${name},\n\nGreat job on completing your ${sessionDetails.skill} session with ${partnerName}!\nView summary & leave review: ${clientUrl}/sessions/${sessionDetails._id || ''}`;
 
@@ -466,7 +473,7 @@ export const sendSessionCompletedEmail = async (to, name, partnerName, sessionDe
         ctaUrl: `${clientUrl}/sessions/${sessionDetails._id || ''}`
     });
 
-    return transporter.sendMail({
+    return sendWithRetry({
         from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
@@ -480,8 +487,7 @@ export const sendSessionCompletedEmail = async (to, name, partnerName, sessionDe
  * 8. Password Reset Email
  */
 export const sendPasswordResetEmail = async (to, name = 'there', token) => {
-    const transporter = getTransporter();
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const resetUrl = `${clientUrl}/reset-password?token=${token}`;
 
     const text = `Hi ${name},\n\nReset your SkillSync password by clicking the link below:\n\n${resetUrl}\n\nThis link is valid for 1 hour only.\n\nBest,\nThe SkillSync Team`;
@@ -500,7 +506,7 @@ export const sendPasswordResetEmail = async (to, name = 'there', token) => {
         securityNote: 'This password reset link is valid for 1 hour only. If you did not request a password reset, you can safely ignore this email.'
     });
 
-    return transporter.sendMail({
+    return sendWithRetry({
         from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
@@ -513,3 +519,4 @@ export const sendPasswordResetEmail = async (to, name = 'there', token) => {
         }
     });
 };
+
