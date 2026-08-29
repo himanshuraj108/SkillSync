@@ -1,85 +1,75 @@
 import nodemailer from 'nodemailer';
 
-// ─── Gmail (primary) ────────────────────────────────────────────────────────
+// ─── Production Cloud-Resilient Transporter (Port 465 SSL + Port 587 Fallback) ───
 let gmailTransporter = null;
 
-const getGmailTransporter = async () => {
+const getGmailTransporter = () => {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        console.error('[EMAIL ALERT] SMTP_USER or SMTP_PASS is missing in environment variables! Please configure them in Render/Cloud dashboard.');
+    }
+
     if (!gmailTransporter) {
         gmailTransporter = nodemailer.createTransport({
-            service: 'gmail',
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: Number(process.env.SMTP_PORT) || 465,
+            secure: (process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) === 465 : true),
             auth: {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS
             },
-            pool: true,
-            maxConnections: 3,
-            maxMessages: 50,
+            tls: {
+                rejectUnauthorized: false
+            },
             connectionTimeout: 15000,
+            greetingTimeout: 10000,
             socketTimeout: 20000
         });
-        await gmailTransporter.verify();
-        console.log('[Email] Gmail SMTP ready');
     }
     return gmailTransporter;
 };
 
-// ─── Brevo (backup) ─────────────────────────────────────────────────────────
-let brevoTransporter = null;
-
-const getBrevoTransporter = async () => {
-    if (!brevoTransporter) {
-        brevoTransporter = nodemailer.createTransport({
-            host: 'smtp-relay.brevo.com',
-            port: 587,
-            secure: false,
-            auth: {
-                user: process.env.BREVO_SMTP_USER,
-                pass: process.env.BREVO_SMTP_PASS
-            },
-            connectionTimeout: 15000,
-            socketTimeout: 20000
-        });
-        await brevoTransporter.verify();
-        console.log('[Email] Brevo SMTP ready (backup)');
-    }
-    return brevoTransporter;
-};
-
-// ─── Smart send: Gmail → Brevo fallback ─────────────────────────────────────
+// ─── Smart send with auto-recovery for cloud platforms ──────────────────────
 const sendWithRetry = async (mailOptions) => {
-    // 1. Try Gmail (primary)
-    try {
-        const t = await getGmailTransporter();
-        const info = await t.sendMail(mailOptions);
-        console.log('[Email] Sent via Gmail:', info.response?.split(' ').slice(0,3).join(' '));
-        return info;
-    } catch (gmailErr) {
-        console.warn('[Email] Gmail failed:', gmailErr.message, '— trying Brevo backup...');
-        gmailTransporter = null; // reset for next call
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        console.warn('[Email Skipped] SMTP credentials not set on server. Email not dispatched.');
+        return { message: 'SMTP credentials not configured on server' };
     }
 
-    // 2. Fall back to Brevo
-    if (!process.env.BREVO_SMTP_USER || !process.env.BREVO_SMTP_PASS) {
-        throw new Error('Gmail failed and no Brevo credentials configured.');
-    }
     try {
-        const t = await getBrevoTransporter();
-        const info = await t.sendMail({
-            ...mailOptions,
-            // Brevo requires sender to match a verified sender in the dashboard
-            from: process.env.BREVO_FROM || mailOptions.from
-        });
-        console.log('[Email] Sent via Brevo (backup):', info.response?.split(' ').slice(0,3).join(' '));
+        const t = getGmailTransporter();
+        const info = await t.sendMail(mailOptions);
+        console.log(`[Email Delivered] To: ${mailOptions.to} | Response: ${info.response?.split(' ').slice(0,3).join(' ')}`);
         return info;
-    } catch (brevoErr) {
-        brevoTransporter = null; // reset for next call
-        console.error('[Email] Brevo also failed:', brevoErr.message);
-        throw brevoErr;
+    } catch (err) {
+        console.warn('[Email Warning] Primary Port 465 failed, attempting Port 587 STARTTLS:', err.message);
+        gmailTransporter = null; // Reset
+
+        try {
+            const fallbackTransporter = nodemailer.createTransport({
+                host: 'smtp.gmail.com',
+                port: 587,
+                secure: false,
+                auth: {
+                    user: process.env.SMTP_USER,
+                    pass: process.env.SMTP_PASS
+                },
+                tls: {
+                    rejectUnauthorized: false
+                },
+                connectionTimeout: 15000
+            });
+            const fallbackInfo = await fallbackTransporter.sendMail(mailOptions);
+            console.log(`[Email Delivered via Port 587] To: ${mailOptions.to}`);
+            return fallbackInfo;
+        } catch (fallbackErr) {
+            console.error('[Email Final Failure]:', fallbackErr.message);
+            throw fallbackErr;
+        }
     }
 };
 
 const getFromAddress = () => {
-    return process.env.EMAIL_FROM || `"SkillSync" <${process.env.SMTP_USER}>`;
+    return process.env.EMAIL_FROM || `"SkillSync" <${process.env.SMTP_USER || 'no-reply@skillsync.com'}>`;
 };
 
 

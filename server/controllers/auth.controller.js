@@ -67,9 +67,11 @@ export const register = async (req, res, next) => {
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
+        const verifyUrl = `${clientUrl}/verify-email?token=${verificationToken}`;
+
         res.status(201).json({
             success: true,
-            data: user.toPublicJSON(),
+            data: { ...user.toPublicJSON(), verifyUrl },
             accessToken
         });
     } catch (error) {
