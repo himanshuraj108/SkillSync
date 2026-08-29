@@ -21,10 +21,15 @@ export const register = async (req, res, next) => {
         const normalizedEmail = (email || '').trim().toLowerCase();
         const existingUser = await User.findOne({ email: normalizedEmail });
         if (existingUser) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'This email is already registered. Please log in instead or use another email.' 
-            });
+            if (existingUser.is_active === false) {
+                // If previous account was deleted, remove the ghost record so user can register fresh
+                await User.findByIdAndDelete(existingUser._id);
+            } else {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'This email is already registered. Please log in instead or use another email.' 
+                });
+            }
         }
 
         const verificationToken = crypto.randomBytes(32).toString('hex');
@@ -82,10 +87,18 @@ export const register = async (req, res, next) => {
 export const login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
+        const normalizedEmail = (email || '').trim().toLowerCase();
         
-        const user = await User.findOne({ email }).select('+password');
+        const user = await User.findOne({ email: normalizedEmail }).select('+password');
         if (!user) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+
+        if (user.is_active === false) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'This account has been deleted. You can register a new account or contact support.' 
+            });
         }
 
         const isMatch = await user.comparePassword(password);

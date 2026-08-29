@@ -15,8 +15,8 @@ export const protectRoute = async (req, res, next) => {
         try {
             const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
             req.user = await User.findById(decoded.userId);
-            if (!req.user) {
-                return res.status(401).json({ success: false, message: 'User not found' });
+            if (!req.user || req.user.is_active === false) {
+                return res.status(401).json({ success: false, message: 'Account has been deleted or does not exist' });
             }
             next();
         } catch (error) {

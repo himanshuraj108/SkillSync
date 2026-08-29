@@ -95,8 +95,15 @@ export const getUserReviews = async (req, res, next) => {
 
 export const deleteAccount = async (req, res, next) => {
     try {
-        await User.findByIdAndUpdate(req.user._id, { is_active: false });
-        res.status(200).json({ success: true, message: 'Account deactivated' });
+        const userId = req.user._id;
+        await User.findByIdAndUpdate(userId, { 
+            is_active: false,
+            refresh_token: undefined,
+            email_verification_token: undefined
+        });
+        
+        res.clearCookie('refreshToken');
+        res.status(200).json({ success: true, message: 'Your account has been deleted successfully' });
     } catch (error) {
         next(error);
     }
