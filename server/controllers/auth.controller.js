@@ -254,6 +254,10 @@ export const resendVerification = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Your email is already verified.' });
         }
 
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        user.email_verification_token = verificationToken;
+        await user.save();
+
         const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
         const verifyUrl = `${clientUrl}/verify-email?token=${verificationToken}`;
         console.log(`[VERIFICATION EMAIL SENT] Recipient: ${user.email} | Link: ${verifyUrl}`);

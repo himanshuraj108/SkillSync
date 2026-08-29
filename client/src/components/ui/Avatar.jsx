@@ -23,6 +23,16 @@ export function Avatar({ src, name, size = 'md', online, className }) {
   const initials = getInitials(name)
   const colorClass = getColorFromName(name)
 
+  let cleanSrc = src
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && src?.startsWith('http://localhost')) {
+    const backendOrigin = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL?.replace('/api', '')
+    if (backendOrigin && !backendOrigin.includes('localhost')) {
+      cleanSrc = src.replace('http://localhost:5000', backendOrigin)
+    } else {
+      cleanSrc = null
+    }
+  }
+
   return (
     <div className="relative inline-flex">
       <AvatarPrimitive.Root
@@ -33,7 +43,7 @@ export function Avatar({ src, name, size = 'md', online, className }) {
         )}
       >
         <AvatarPrimitive.Image
-          src={src}
+          src={cleanSrc}
           alt={name}
           className="aspect-square h-full w-full object-cover"
         />
