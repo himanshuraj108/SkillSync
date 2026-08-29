@@ -158,8 +158,8 @@ export const refreshToken = async (req, res, next) => {
         const decoded = verifyRefreshToken(token);
         const user = await User.findById(decoded.userId).select('+refresh_token');
         
-        if (!user || user.refresh_token !== token) {
-            return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+        if (!user || user.refresh_token !== token || user.is_active === false) {
+            return res.status(401).json({ success: false, message: 'Invalid or deactivated account session' });
         }
 
         const accessToken = generateAccessToken(user._id);
@@ -184,9 +184,18 @@ export const refreshToken = async (req, res, next) => {
 export const forgotPassword = async (req, res, next) => {
     try {
         const { email } = req.body;
-        const user = await User.findOne({ email });
+        const normalizedEmail = (email || '').trim().toLowerCase();
+        const user = await User.findOne({ email: normalizedEmail });
+        
         if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
+            return res.status(404).json({ success: false, message: 'No account exists with this email address.' });
+        }
+
+        if (user.is_active === false) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'This account has been deleted. Password reset is not available. Please register a new account.' 
+            });
         }
 
         const resetToken = crypto.randomBytes(32).toString('hex');
@@ -212,11 +221,12 @@ export const resetPassword = async (req, res, next) => {
 
         const user = await User.findOne({
             password_reset_token: hashedToken,
-            password_reset_expires: { $gt: Date.now() }
+            password_reset_expires: { $gt: Date.now() },
+            is_active: true
         }).select('+password_reset_token +password_reset_expires');
 
         if (!user) {
-            return res.status(400).json({ success: false, message: 'Token is invalid or has expired' });
+            return res.status(400).json({ success: false, message: 'Password reset link is invalid, expired, or the account has been deleted.' });
         }
 
         user.password = newPassword;
