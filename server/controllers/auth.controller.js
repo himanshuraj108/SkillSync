@@ -249,6 +249,8 @@ export const resendVerification = async (req, res, next) => {
 
         const verificationToken = crypto.randomBytes(32).toString('hex');
         user.email_verification_token = verificationToken;
+        await user.save();
+
         sendVerificationEmail(user.email, user.name, verificationToken).catch(err => {
             console.error('Resend verification email error:', err.message);
         });
