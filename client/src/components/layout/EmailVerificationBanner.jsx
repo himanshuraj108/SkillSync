@@ -29,14 +29,10 @@ export function EmailVerificationBanner() {
     if (cooldown > 0 || loading) return
     setLoading(true)
     try {
-      const res = await resendVerification()
-      const url = res?.data?.verifyUrl || res?.verifyUrl
-      if (url) {
-        setDirectVerifyUrl(url)
-      }
+      await resendVerification()
       notify.success(
-        `A verification email has been delivered to ${user.email}. Check Inbox or Spam.`,
-        'Verification Link Sent'
+        `A verification email has been sent to ${user.email}. Please check your inbox or spam folder.`,
+        'Verification Email Sent'
       )
       setCooldown(60)
     } catch (err) {
@@ -53,34 +49,11 @@ export function EmailVerificationBanner() {
           <div className="h-8 w-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 shrink-0 shadow-xs hidden sm:flex">
             <ShieldAlert className="h-4 w-4" />
           </div>
-          <div className="space-y-0.5">
-            <p className="font-medium leading-relaxed">
-              <span>Verify your email </span>
-              <strong className="text-neutral-900 dark:text-amber-100 font-bold underline underline-offset-2 mx-1">{user.email}</strong>
-              <span className="hidden sm:inline">to unlock video sessions, direct messaging, and matching.</span>
-            </p>
-            {directVerifyUrl && (
-              <div className="flex items-center gap-2 pt-1">
-                <a
-                  href={directVerifyUrl}
-                  className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors shadow-xs"
-                >
-                  <CheckCircle2 className="h-3 w-3" />
-                  Verify Account Now (1-Click)
-                </a>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(directVerifyUrl)
-                    notify.success('Verification link copied to clipboard!', 'Copied')
-                  }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-semibold transition-colors"
-                >
-                  Copy Link
-                </button>
-              </div>
-            )}
-          </div>
+          <p className="font-medium leading-relaxed">
+            <span>Verify your email </span>
+            <strong className="text-neutral-900 dark:text-amber-100 font-bold underline underline-offset-2 mx-1">{user.email}</strong>
+            <span className="hidden sm:inline">to unlock video sessions, direct messaging, and matching.</span>
+          </p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-center">
@@ -96,7 +69,7 @@ export function EmailVerificationBanner() {
               <Mail className="h-3.5 w-3.5" />
             )}
             <span>
-              {cooldown > 0 ? `Resend in ${cooldown}s` : (directVerifyUrl ? 'Resend Email' : 'Resend Verification Link')}
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend verification link'}
             </span>
           </button>
 

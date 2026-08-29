@@ -1,47 +1,35 @@
 import nodemailer from 'nodemailer';
 
-// ─── Production Cloud-Resilient Transporter (Port 465 SSL + Port 587 Fallback) ───
+// ─── Production Gmail Transporter ───────────────────────────────────────────
 let gmailTransporter = null;
 
 const getGmailTransporter = () => {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        console.error('[EMAIL ALERT] SMTP_USER or SMTP_PASS is missing in environment variables! Please configure them in Render/Cloud dashboard.');
-    }
-
     if (!gmailTransporter) {
         gmailTransporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
-            port: Number(process.env.SMTP_PORT) || 465,
-            secure: (process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) === 465 : true),
+            service: 'gmail',
             auth: {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS
-            },
-            tls: {
-                rejectUnauthorized: false
-            },
-            connectionTimeout: 15000,
-            greetingTimeout: 10000,
-            socketTimeout: 20000
+            }
         });
     }
     return gmailTransporter;
 };
 
-// ─── Smart send with auto-recovery for cloud platforms ──────────────────────
+// ─── Dispatch with auto-fallback ────────────────────────────────────────────
 const sendWithRetry = async (mailOptions) => {
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        console.warn('[Email Skipped] SMTP credentials not set on server. Email not dispatched.');
+        console.warn('[Email Skipped] SMTP credentials not configured on server.');
         return { message: 'SMTP credentials not configured on server' };
     }
 
     try {
         const t = getGmailTransporter();
         const info = await t.sendMail(mailOptions);
-        console.log(`[Email Delivered] To: ${mailOptions.to} | Response: ${info.response?.split(' ').slice(0,3).join(' ')}`);
+        console.log(`[Email Sent] To: ${mailOptions.to} | Response: ${info.response}`);
         return info;
     } catch (err) {
-        console.warn('[Email Warning] Primary Port 465 failed, attempting Port 587 STARTTLS:', err.message);
+        console.warn('[Email Warning] Primary send failed, retrying with direct SMTP host:', err.message);
         gmailTransporter = null; // Reset
 
         try {
@@ -55,11 +43,10 @@ const sendWithRetry = async (mailOptions) => {
                 },
                 tls: {
                     rejectUnauthorized: false
-                },
-                connectionTimeout: 15000
+                }
             });
             const fallbackInfo = await fallbackTransporter.sendMail(mailOptions);
-            console.log(`[Email Delivered via Port 587] To: ${mailOptions.to}`);
+            console.log(`[Email Delivered via Fallback] To: ${mailOptions.to}`);
             return fallbackInfo;
         } catch (fallbackErr) {
             console.error('[Email Final Failure]:', fallbackErr.message);

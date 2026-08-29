@@ -72,11 +72,9 @@ export const register = async (req, res, next) => {
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
-        const verifyUrl = `${clientUrl}/verify-email?token=${verificationToken}`;
-
         res.status(201).json({
             success: true,
-            data: { ...user.toPublicJSON(), verifyUrl },
+            data: user.toPublicJSON(),
             accessToken
         });
     } catch (error) {
@@ -279,8 +277,7 @@ export const resendVerification = async (req, res, next) => {
 
         res.status(200).json({
             success: true,
-            message: 'A new verification link has been sent to your email address.',
-            data: { verifyUrl }
+            message: 'A new verification link has been sent to your email address.'
         });
     } catch (error) {
         next(error);
