@@ -81,8 +81,12 @@ export default function Settings() {
   const deleteMutation = useMutation({
     mutationFn: deleteAccount,
     onSuccess: () => {
+      localStorage.removeItem('ss_access_token')
       clearUser()
-      window.location.href = '/'
+      notify.success('Your account and all associated data have been permanently deleted from the database.', 'Account Purged')
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 400)
     },
     onError: (err) => notify.error(err.message || 'Delete operation failed.', 'Account Error'),
   })

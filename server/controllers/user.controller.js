@@ -1,5 +1,11 @@
 import User from '../models/User.js';
 import Review from '../models/Review.js';
+import Match from '../models/Match.js';
+import Session from '../models/Session.js';
+import Conversation from '../models/Conversation.js';
+import Message from '../models/Message.js';
+import Notification from '../models/Notification.js';
+import LearningProgress from '../models/LearningProgress.js';
 import { uploadToCloudinary } from '../config/cloudinary.js';
 import cloudinary from '../config/cloudinary.js';
 
@@ -96,14 +102,66 @@ export const getUserReviews = async (req, res, next) => {
 export const deleteAccount = async (req, res, next) => {
     try {
         const userId = req.user._id;
-        await User.findByIdAndUpdate(userId, { 
-            is_active: false,
-            refresh_token: undefined,
-            email_verification_token: undefined
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // 1. Delete user's avatar from Cloudinary (if stored there)
+        if (user.avatar?.publicId && !user.avatar.publicId.startsWith('local/')) {
+            try { await cloudinary.uploader.destroy(user.avatar.publicId); } catch (_) {}
+        }
+
+        // 2. Find and delete all conversations and messages involving this user
+        const conversations = await Conversation.find({ participants: userId });
+        const convIds = conversations.map(c => c._id);
+        if (convIds.length > 0) {
+            await Message.deleteMany({ conversation_id: { $in: convIds } });
+            await Conversation.deleteMany({ _id: { $in: convIds } });
+        }
+        await Message.deleteMany({ sender: userId });
+
+        // 3. Delete all matches where this user is user_a, user_b, or initiated_by
+        await Match.deleteMany({
+            $or: [
+                { 'user_a.user': userId },
+                { 'user_b.user': userId },
+                { initiated_by: userId }
+            ]
         });
-        
+
+        // 4. Delete all sessions where this user is teacher or learner
+        await Session.deleteMany({
+            $or: [
+                { teacher: userId },
+                { learner: userId }
+            ]
+        });
+
+        // 5. Delete all reviews given by or received by this user
+        await Review.deleteMany({
+            $or: [
+                { reviewer: userId },
+                { reviewee: userId }
+            ]
+        });
+
+        // 6. Delete all notifications for this user
+        await Notification.deleteMany({ user_id: userId });
+
+        // 7. Delete all learning progress/roadmaps for this user
+        await LearningProgress.deleteMany({ user_id: userId });
+
+        // 8. Permanently delete the User document from MongoDB
+        await User.findByIdAndDelete(userId);
+
+        console.log(`[USER PURGED] All database records permanently deleted for user: ${user.email} (${userId})`);
+
         res.clearCookie('refreshToken');
-        res.status(200).json({ success: true, message: 'Your account has been deleted successfully' });
+        res.status(200).json({ 
+            success: true, 
+            message: 'Your account and all associated data have been permanently deleted from the database.' 
+        });
     } catch (error) {
         next(error);
     }
