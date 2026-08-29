@@ -4,7 +4,7 @@ import { API_BASE_URL } from '@/lib/constants.js'
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  timeout: 10000,
+  timeout: 120000, // 120 seconds to prevent false timeouts during AI tasks or cold starts
 })
 
 export const setAuthToken = (token) => {
@@ -81,8 +81,13 @@ api.interceptors.response.use(
         }
       }
     }
+    const isTimeout = error.code === 'ECONNABORTED' || error.message?.toLowerCase().includes('timeout')
+    const formattedMessage = isTimeout
+      ? 'The request took longer than usual. Please try again.'
+      : (error.response?.data?.message || error.message || 'An error occurred')
+
     return Promise.reject({
-      message: error.response?.data?.message || error.message,
+      message: formattedMessage,
       status: error.response?.status,
       errors: error.response?.data?.errors,
     })
