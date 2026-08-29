@@ -4,23 +4,44 @@ let pooledTransporter = null;
 
 const getTransporter = () => {
     if (!pooledTransporter) {
-        pooledTransporter = nodemailer.createTransport({
-            service: 'gmail',
-            pool: true,
-            maxConnections: 5,
-            maxMessages: 100,
-            rateDelta: 1000,
-            rateLimit: 5,
-            connectionTimeout: 10000,
-            greetingTimeout: 5000,
-            socketTimeout: 15000,
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS
+        const isCustomHost = !!process.env.SMTP_HOST && process.env.SMTP_HOST !== 'smtp.gmail.com';
+        const transportConfig = isCustomHost
+            ? {
+                host: process.env.SMTP_HOST,
+                port: Number(process.env.SMTP_PORT) || 587,
+                secure: false, // Port 587 uses STARTTLS
+                pool: true,
+                maxConnections: 5,
+                maxMessages: 100,
+                connectionTimeout: 10000,
+                greetingTimeout: 5000,
+                socketTimeout: 15000,
+                auth: {
+                    user: process.env.SMTP_USER,
+                    pass: process.env.SMTP_PASS
+                }
             }
-        });
+            : {
+                service: 'gmail',
+                pool: true,
+                maxConnections: 5,
+                maxMessages: 100,
+                connectionTimeout: 10000,
+                greetingTimeout: 5000,
+                socketTimeout: 15000,
+                auth: {
+                    user: process.env.SMTP_USER,
+                    pass: process.env.SMTP_PASS
+                }
+            };
+
+        pooledTransporter = nodemailer.createTransport(transportConfig);
     }
     return pooledTransporter;
+};
+
+const getFromAddress = () => {
+    return process.env.EMAIL_FROM || `"SkillSync" <${process.env.SMTP_USER}>`;
 };
 
 /**
@@ -204,7 +225,7 @@ export const sendVerificationEmail = async (to, name = 'there', token) => {
     });
 
     return transporter.sendMail({
-        from: `"SkillSync" <${process.env.SMTP_USER}>`,
+        from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
         subject: 'Verify your SkillSync account',
@@ -247,7 +268,7 @@ export const sendWelcomeEmail = async (to, name = 'there') => {
     });
 
     return transporter.sendMail({
-        from: `"SkillSync" <${process.env.SMTP_USER}>`,
+        from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
         subject: 'Welcome to SkillSync - Get started exchanging skills',
@@ -290,7 +311,7 @@ export const sendMatchRequestEmail = async (to, recipientName, senderName, teach
     });
 
     return transporter.sendMail({
-        from: `"SkillSync" <${process.env.SMTP_USER}>`,
+        from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
         subject: `New Skill Swap request from ${senderName}`,
@@ -321,7 +342,7 @@ export const sendMatchAcceptedEmail = async (to, name, partnerName, teachSkill, 
     });
 
     return transporter.sendMail({
-        from: `"SkillSync" <${process.env.SMTP_USER}>`,
+        from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
         subject: `Match Accepted: You and ${partnerName} are now connected`,
@@ -376,7 +397,7 @@ export const sendSessionScheduledEmail = async (to, name, partnerName, sessionDe
     });
 
     return transporter.sendMail({
-        from: `"SkillSync" <${process.env.SMTP_USER}>`,
+        from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
         subject: `Confirmed: ${sessionDetails.skill} session with ${partnerName}`,
@@ -415,7 +436,7 @@ export const sendSessionReminderEmail = async (to, sessionDetails) => {
     });
 
     return transporter.sendMail({
-        from: `"SkillSync" <${process.env.SMTP_USER}>`,
+        from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
         subject: `Reminder: Upcoming session on ${sessionDetails.skill}`,
@@ -446,7 +467,7 @@ export const sendSessionCompletedEmail = async (to, name, partnerName, sessionDe
     });
 
     return transporter.sendMail({
-        from: `"SkillSync" <${process.env.SMTP_USER}>`,
+        from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
         subject: `Session Completed: ${sessionDetails.skill} with ${partnerName}`,
@@ -480,7 +501,7 @@ export const sendPasswordResetEmail = async (to, name = 'there', token) => {
     });
 
     return transporter.sendMail({
-        from: `"SkillSync" <${process.env.SMTP_USER}>`,
+        from: getFromAddress(),
         to,
         replyTo: process.env.SMTP_USER,
         subject: 'Reset your SkillSync password',
