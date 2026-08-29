@@ -39,6 +39,9 @@ export const register = async (req, res, next) => {
             email_verification_token: verificationToken
         });
 
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        console.log(`[NEW REGISTRATION EMAIL] Recipient: ${email} | Verify URL: ${clientUrl}/verify-email?token=${verificationToken}`);
+
         // Dispatch verification & welcome emails in the background
         sendVerificationEmail(email, name, verificationToken).catch(err => {
             console.error('Verification email error:', err.message);
@@ -247,9 +250,9 @@ export const resendVerification = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Your email is already verified.' });
         }
 
-        const verificationToken = crypto.randomBytes(32).toString('hex');
-        user.email_verification_token = verificationToken;
-        await user.save();
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const verifyUrl = `${clientUrl}/verify-email?token=${verificationToken}`;
+        console.log(`[VERIFICATION EMAIL SENT] Recipient: ${user.email} | Link: ${verifyUrl}`);
 
         sendVerificationEmail(user.email, user.name, verificationToken).catch(err => {
             console.error('Resend verification email error:', err.message);
@@ -257,7 +260,8 @@ export const resendVerification = async (req, res, next) => {
 
         res.status(200).json({
             success: true,
-            message: 'A new verification link has been sent to your email address.'
+            message: 'A new verification link has been sent to your email address.',
+            data: { verifyUrl }
         });
     } catch (error) {
         next(error);
