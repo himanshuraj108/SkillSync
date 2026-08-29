@@ -1,60 +1,85 @@
-﻿import nodemailer from 'nodemailer';
+import nodemailer from 'nodemailer';
 
-let pooledTransporter = null;
+// ─── Gmail (primary) ────────────────────────────────────────────────────────
+let gmailTransporter = null;
 
-const createTransporter = () => {
-    // Always use Gmail service â€” verified working. Brevo SMTP relay requires
-    // IP whitelisting (paid plan) and returned 525 Unauthorized for this server.
-    return nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        },
-        pool: true,
-        maxConnections: 3,
-        maxMessages: 50,
-        connectionTimeout: 15000,
-        socketTimeout: 20000
-    });
-};
-
-const getTransporter = async () => {
-    if (!pooledTransporter) {
-        pooledTransporter = createTransporter();
-        try {
-            await pooledTransporter.verify();
-            console.log('[Email] SMTP connection verified â€” Gmail ready');
-        } catch (err) {
-            console.error('[Email] SMTP verify failed, resetting:', err.message);
-            pooledTransporter = null;
-            throw err;
-        }
+const getGmailTransporter = async () => {
+    if (!gmailTransporter) {
+        gmailTransporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
+            },
+            pool: true,
+            maxConnections: 3,
+            maxMessages: 50,
+            connectionTimeout: 15000,
+            socketTimeout: 20000
+        });
+        await gmailTransporter.verify();
+        console.log('[Email] Gmail SMTP ready');
     }
-    return pooledTransporter;
+    return gmailTransporter;
 };
 
-// Reset cached transporter (called if a send fails with auth error)
-const resetTransporter = () => { pooledTransporter = null; };
+// ─── Brevo (backup) ─────────────────────────────────────────────────────────
+let brevoTransporter = null;
+
+const getBrevoTransporter = async () => {
+    if (!brevoTransporter) {
+        brevoTransporter = nodemailer.createTransport({
+            host: 'smtp-relay.brevo.com',
+            port: 587,
+            secure: false,
+            auth: {
+                user: process.env.BREVO_SMTP_USER,
+                pass: process.env.BREVO_SMTP_PASS
+            },
+            connectionTimeout: 15000,
+            socketTimeout: 20000
+        });
+        await brevoTransporter.verify();
+        console.log('[Email] Brevo SMTP ready (backup)');
+    }
+    return brevoTransporter;
+};
+
+// ─── Smart send: Gmail → Brevo fallback ─────────────────────────────────────
+const sendWithRetry = async (mailOptions) => {
+    // 1. Try Gmail (primary)
+    try {
+        const t = await getGmailTransporter();
+        const info = await t.sendMail(mailOptions);
+        console.log('[Email] Sent via Gmail:', info.response?.split(' ').slice(0,3).join(' '));
+        return info;
+    } catch (gmailErr) {
+        console.warn('[Email] Gmail failed:', gmailErr.message, '— trying Brevo backup...');
+        gmailTransporter = null; // reset for next call
+    }
+
+    // 2. Fall back to Brevo
+    if (!process.env.BREVO_SMTP_USER || !process.env.BREVO_SMTP_PASS) {
+        throw new Error('Gmail failed and no Brevo credentials configured.');
+    }
+    try {
+        const t = await getBrevoTransporter();
+        const info = await t.sendMail({
+            ...mailOptions,
+            // Brevo requires sender to match a verified sender in the dashboard
+            from: process.env.BREVO_FROM || mailOptions.from
+        });
+        console.log('[Email] Sent via Brevo (backup):', info.response?.split(' ').slice(0,3).join(' '));
+        return info;
+    } catch (brevoErr) {
+        brevoTransporter = null; // reset for next call
+        console.error('[Email] Brevo also failed:', brevoErr.message);
+        throw brevoErr;
+    }
+};
 
 const getFromAddress = () => {
     return process.env.EMAIL_FROM || `"SkillSync" <${process.env.SMTP_USER}>`;
-};
-
-// Wrapper that auto-retries once on connection failure
-const sendWithRetry = async (mailOptions) => {
-    try {
-        const t = await getTransporter();
-        return await t.sendMail(mailOptions);
-    } catch (err) {
-        if (err.code === 'ECONNECTION' || err.code === 'ETIMEDOUT' || err.responseCode === 535) {
-            console.warn('[Email] Connection error, retrying with fresh transporter:', err.message);
-            resetTransporter();
-            const t = await getTransporter();
-            return await t.sendMail(mailOptions);
-        }
-        throw err;
-    }
 };
 
 
