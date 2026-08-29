@@ -1,21 +1,32 @@
 import nodemailer from 'nodemailer';
 
-const createTransporter = () => {
-    return nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        }
-    });
+let pooledTransporter = null;
+
+const getTransporter = () => {
+    if (!pooledTransporter) {
+        pooledTransporter = nodemailer.createTransport({
+            service: 'gmail',
+            pool: true,
+            maxConnections: 5,
+            maxMessages: 100,
+            rateDelta: 1000,
+            rateLimit: 5,
+            connectionTimeout: 10000,
+            greetingTimeout: 5000,
+            socketTimeout: 15000,
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
+            }
+        });
+    }
+    return pooledTransporter;
 };
 
 /**
  * Reusable Luxury Production Email Frame (Stripe / Linear / Vercel style)
  */
 const renderEmailFrame = ({ previewText, title, badge, contentHtml, ctaText, ctaUrl, securityNote, directLink }) => {
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -172,14 +183,14 @@ const renderEmailFrame = ({ previewText, title, badge, contentHtml, ctaText, cta
  * 1. Verification Email
  */
 export const sendVerificationEmail = async (to, name = 'there', token) => {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const verifyUrl = `${clientUrl}/verify-email?token=${token}`;
 
     const html = renderEmailFrame({
-        previewText: 'Verify your SkillSwap account to start exchanging skills.',
+        previewText: 'Verify your SkillSync account to start exchanging skills.',
         badge: 'Account Security',
-        title: `Welcome to SkillSwap, ${name.split(' ')[0]}!`,
+        title: `Welcome to SkillSync, ${name.split(' ')[0]}!`,
         contentHtml: `
             <p style="margin-top: 0;">You're just one step away from joining an exclusive peer network of university students and professors exchanging skills without money.</p>
             <p>Please confirm your email address by clicking the button below to verify your identity and activate your account:</p>
@@ -187,13 +198,13 @@ export const sendVerificationEmail = async (to, name = 'there', token) => {
         ctaText: 'Verify Email Address',
         ctaUrl: verifyUrl,
         directLink: verifyUrl,
-        securityNote: 'This verification link is valid for 24 hours. If you did not create a SkillSwap account, please disregard this email.'
+        securityNote: 'This verification link is valid for 24 hours. If you did not create a SkillSync account, please disregard this email.'
     });
 
-    await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.SMTP_USER}>`,
+    return transporter.sendMail({
+        from: `"SkillSync" <${process.env.SMTP_USER}>`,
         to,
-        subject: 'Verify your SkillSwap account',
+        subject: 'Verify your SkillSync account',
         html
     });
 };
@@ -202,15 +213,15 @@ export const sendVerificationEmail = async (to, name = 'there', token) => {
  * 2. Thank You for Registering / Welcome Email
  */
 export const sendWelcomeEmail = async (to, name = 'there') => {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
     const html = renderEmailFrame({
-        previewText: 'Your SkillSwap account is active. Here is how to get started.',
+        previewText: 'Your SkillSync account is active. Here is how to get started.',
         badge: 'Getting Started',
         title: `You're ready to swap skills, ${name.split(' ')[0]}!`,
         contentHtml: `
-            <p style="margin-top: 0;">Thank you for registering on <strong>SkillSwap</strong> — where knowledge is the only currency.</p>
+            <p style="margin-top: 0;">Thank you for registering on <strong>SkillSync</strong> — where knowledge is the only currency.</p>
             <div style="background: #0b0f19; border: 1px solid #1e293b; border-radius: 12px; padding: 18px; margin: 20px 0;">
                 <p style="margin: 0 0 10px 0; font-weight: 700; color: #f1f5f9;">3 Steps to your first 1-on-1 swap:</p>
                 <div style="font-size: 13px; color: #94a3b8; line-height: 1.6;">
@@ -225,10 +236,10 @@ export const sendWelcomeEmail = async (to, name = 'there') => {
         securityNote: 'You can update your notification preferences anytime in your Profile Settings.'
     });
 
-    await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.SMTP_USER}>`,
+    return transporter.sendMail({
+        from: `"SkillSync" <${process.env.SMTP_USER}>`,
         to,
-        subject: 'Welcome to SkillSwap - Get started exchanging skills',
+        subject: 'Welcome to SkillSync - Get started exchanging skills',
         html
     });
 };
@@ -237,15 +248,15 @@ export const sendWelcomeEmail = async (to, name = 'there') => {
  * 3. Match Request Alert Email
  */
 export const sendMatchRequestEmail = async (to, recipientName, senderName, teachSkill, learnSkill) => {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
     const html = renderEmailFrame({
-        previewText: `${senderName} wants to exchange skills with you on SkillSwap.`,
+        previewText: `${senderName} wants to exchange skills with you on SkillSync.`,
         badge: 'New Match Request',
         title: `Skill Swap Invitation from ${senderName}`,
         contentHtml: `
-            <p style="margin-top: 0;"><strong>${senderName}</strong> wants to connect and exchange knowledge with you on SkillSwap.</p>
+            <p style="margin-top: 0;"><strong>${senderName}</strong> wants to connect and exchange knowledge with you on SkillSync.</p>
             <div style="background: #0b0f19; border: 1px solid #1e293b; border-radius: 12px; padding: 16px; margin: 18px 0;">
                 <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 13px;">
                     <tr>
@@ -264,8 +275,8 @@ export const sendMatchRequestEmail = async (to, recipientName, senderName, teach
         ctaUrl: `${clientUrl}/matches`
     });
 
-    await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.SMTP_USER}>`,
+    return transporter.sendMail({
+        from: `"SkillSync" <${process.env.SMTP_USER}>`,
         to,
         subject: `New Skill Swap request from ${senderName}`,
         html
@@ -276,7 +287,7 @@ export const sendMatchRequestEmail = async (to, recipientName, senderName, teach
  * 4. Match Accepted Notification Email
  */
 export const sendMatchAcceptedEmail = async (to, name, partnerName, teachSkill, learnSkill) => {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
     const html = renderEmailFrame({
@@ -291,8 +302,8 @@ export const sendMatchAcceptedEmail = async (to, name, partnerName, teachSkill, 
         ctaUrl: `${clientUrl}/chat`
     });
 
-    await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.SMTP_USER}>`,
+    return transporter.sendMail({
+        from: `"SkillSync" <${process.env.SMTP_USER}>`,
         to,
         subject: `Match Accepted: You and ${partnerName} are now connected`,
         html
@@ -303,7 +314,7 @@ export const sendMatchAcceptedEmail = async (to, name, partnerName, teachSkill, 
  * 5. Session Scheduled Confirmation Email
  */
 export const sendSessionScheduledEmail = async (to, name, partnerName, sessionDetails) => {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const dateFormatted = new Date(sessionDetails.scheduled_at).toLocaleString('en-US', {
         weekday: 'short',
@@ -342,8 +353,8 @@ export const sendSessionScheduledEmail = async (to, name, partnerName, sessionDe
         ctaUrl: `${clientUrl}/sessions/${sessionDetails._id || ''}`
     });
 
-    await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.SMTP_USER}>`,
+    return transporter.sendMail({
+        from: `"SkillSync" <${process.env.SMTP_USER}>`,
         to,
         subject: `Confirmed: ${sessionDetails.skill} session with ${partnerName}`,
         html
@@ -354,7 +365,7 @@ export const sendSessionScheduledEmail = async (to, name, partnerName, sessionDe
  * 6. Session Reminder (24h / 30m) Email
  */
 export const sendSessionReminderEmail = async (to, sessionDetails) => {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const dateFormatted = new Date(sessionDetails.scheduled_at).toLocaleString('en-US', {
         weekday: 'short',
@@ -377,8 +388,8 @@ export const sendSessionReminderEmail = async (to, sessionDetails) => {
         ctaUrl: `${clientUrl}/sessions/${sessionDetails._id || ''}`
     });
 
-    await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.SMTP_USER}>`,
+    return transporter.sendMail({
+        from: `"SkillSync" <${process.env.SMTP_USER}>`,
         to,
         subject: `Reminder: Upcoming session on ${sessionDetails.skill}`,
         html
@@ -389,7 +400,7 @@ export const sendSessionReminderEmail = async (to, sessionDetails) => {
  * 7. Session Completed / Review Reminder Email
  */
 export const sendSessionCompletedEmail = async (to, name, partnerName, sessionDetails) => {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
     const html = renderEmailFrame({
@@ -404,8 +415,8 @@ export const sendSessionCompletedEmail = async (to, name, partnerName, sessionDe
         ctaUrl: `${clientUrl}/sessions/${sessionDetails._id || ''}`
     });
 
-    await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.SMTP_USER}>`,
+    return transporter.sendMail({
+        from: `"SkillSync" <${process.env.SMTP_USER}>`,
         to,
         subject: `Session Completed: ${sessionDetails.skill} with ${partnerName}`,
         html
@@ -416,16 +427,16 @@ export const sendSessionCompletedEmail = async (to, name, partnerName, sessionDe
  * 8. Password Reset Email
  */
 export const sendPasswordResetEmail = async (to, name = 'there', token) => {
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const resetUrl = `${clientUrl}/reset-password?token=${token}`;
 
     const html = renderEmailFrame({
-        previewText: 'Reset your SkillSwap password.',
+        previewText: 'Reset your SkillSync password.',
         badge: 'Password Reset',
         title: 'Reset your password',
         contentHtml: `
-            <p style="margin-top: 0;">We received a request to reset the password for your SkillSwap account associated with <strong>${to}</strong>.</p>
+            <p style="margin-top: 0;">We received a request to reset the password for your SkillSync account associated with <strong>${to}</strong>.</p>
             <p>Click the button below to choose a new secure password:</p>
         `,
         ctaText: 'Reset Password',
@@ -434,10 +445,10 @@ export const sendPasswordResetEmail = async (to, name = 'there', token) => {
         securityNote: 'This password reset link is valid for 1 hour only. If you did not request a password reset, you can safely ignore this email.'
     });
 
-    await transporter.sendMail({
-        from: `"SkillSwap" <${process.env.SMTP_USER}>`,
+    return transporter.sendMail({
+        from: `"SkillSync" <${process.env.SMTP_USER}>`,
         to,
-        subject: 'Reset your SkillSwap password',
+        subject: 'Reset your SkillSync password',
         html
     });
 };

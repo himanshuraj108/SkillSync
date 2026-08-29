@@ -181,15 +181,15 @@ export const sendMatchRequest = async (req, res, next) => {
             link: `/matches`
         });
 
-        try {
-            await sendMatchRequestEmail(
-                targetUser.email,
-                targetUser.name,
-                req.user.name,
-                match.user_a.teaches_skill,
-                match.user_b.teaches_skill
-            );
-        } catch (_) {}
+        sendMatchRequestEmail(
+            targetUser.email,
+            targetUser.name,
+            req.user.name,
+            match.user_a.teaches_skill,
+            match.user_b.teaches_skill
+        ).catch(err => {
+            console.error('Match request email error:', err.message);
+        });
 
         res.status(201).json({ success: true, data: match });
     } catch (error) {
@@ -270,18 +270,17 @@ export const respondToMatch = async (req, res, next) => {
                 link: `/matches`
             });
 
-            try {
-                const initiator = await User.findById(match.initiated_by);
+            User.findById(match.initiated_by).then(initiator => {
                 if (initiator) {
-                    await sendMatchAcceptedEmail(
+                    sendMatchAcceptedEmail(
                         initiator.email,
                         initiator.name,
                         req.user.name,
                         match.user_a.teaches_skill,
                         match.user_b.teaches_skill
-                    );
+                    ).catch(err => console.error('Match accepted email error:', err.message));
                 }
-            } catch (_) {}
+            }).catch(() => {});
         }
 
         res.status(200).json({ success: true, data: match });

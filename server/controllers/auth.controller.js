@@ -39,10 +39,13 @@ export const register = async (req, res, next) => {
             email_verification_token: verificationToken
         });
 
-        try {
-            await sendVerificationEmail(email, name, verificationToken);
-            await sendWelcomeEmail(email, name);
-        } catch (_) {}
+        // Dispatch verification & welcome emails in the background
+        sendVerificationEmail(email, name, verificationToken).catch(err => {
+            console.error('Verification email error:', err.message);
+        });
+        sendWelcomeEmail(email, name).catch(err => {
+            console.error('Welcome email error:', err.message);
+        });
 
         const accessToken = generateAccessToken(user._id);
         const refreshToken = generateRefreshToken(user._id);
@@ -169,9 +172,10 @@ export const forgotPassword = async (req, res, next) => {
         user.password_reset_expires = Date.now() + 60 * 60 * 1000; // 1 hour
 
         await user.save();
-        try {
-            await sendPasswordResetEmail(user.email, user.name, resetToken);
-        } catch (_) {}
+        
+        sendPasswordResetEmail(user.email, user.name, resetToken).catch(err => {
+            console.error('Password reset email error:', err.message);
+        });
 
         res.status(200).json({ success: true, message: 'Password reset email sent' });
     } catch (error) {
@@ -245,9 +249,9 @@ export const resendVerification = async (req, res, next) => {
 
         const verificationToken = crypto.randomBytes(32).toString('hex');
         user.email_verification_token = verificationToken;
-        await user.save();
-
-        await sendVerificationEmail(user.email, user.name, verificationToken);
+        sendVerificationEmail(user.email, user.name, verificationToken).catch(err => {
+            console.error('Resend verification email error:', err.message);
+        });
 
         res.status(200).json({
             success: true,

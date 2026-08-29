@@ -68,14 +68,18 @@ export const createSession = async (req, res, next) => {
             link: `/sessions/${session._id}`
         });
 
-        try {
-            const teacherUser = await User.findById(teacher_id);
-            const learnerUser = await User.findById(learner_id);
+        User.find({ _id: { $in: [teacher_id, learner_id] } }).then(([user1, user2]) => {
+            const teacherUser = user1?._id.toString() === teacher_id.toString() ? user1 : user2;
+            const learnerUser = user1?._id.toString() === learner_id.toString() ? user1 : user2;
             if (teacherUser && learnerUser) {
-                await sendSessionScheduledEmail(teacherUser.email, teacherUser.name, learnerUser.name, session);
-                await sendSessionScheduledEmail(learnerUser.email, learnerUser.name, teacherUser.name, session);
+                sendSessionScheduledEmail(teacherUser.email, teacherUser.name, learnerUser.name, session).catch(err => {
+                    console.error('Session email error (teacher):', err.message);
+                });
+                sendSessionScheduledEmail(learnerUser.email, learnerUser.name, teacherUser.name, session).catch(err => {
+                    console.error('Session email error (learner):', err.message);
+                });
             }
-        } catch (_) {}
+        }).catch(() => {});
 
         res.status(201).json({ success: true, data: session });
     } catch (error) {
@@ -264,14 +268,18 @@ export const completeSession = async (req, res, next) => {
             }
         }
 
-        try {
-            const teacherUser = await User.findById(session.teacher);
-            const learnerUser = await User.findById(session.learner);
+        User.find({ _id: { $in: [session.teacher, session.learner] } }).then(([user1, user2]) => {
+            const teacherUser = user1?._id.toString() === session.teacher.toString() ? user1 : user2;
+            const learnerUser = user1?._id.toString() === session.learner.toString() ? user1 : user2;
             if (teacherUser && learnerUser) {
-                await sendSessionCompletedEmail(teacherUser.email, teacherUser.name, learnerUser.name, session);
-                await sendSessionCompletedEmail(learnerUser.email, learnerUser.name, teacherUser.name, session);
+                sendSessionCompletedEmail(teacherUser.email, teacherUser.name, learnerUser.name, session).catch(err => {
+                    console.error('Session complete email error (teacher):', err.message);
+                });
+                sendSessionCompletedEmail(learnerUser.email, learnerUser.name, teacherUser.name, session).catch(err => {
+                    console.error('Session complete email error (learner):', err.message);
+                });
             }
-        } catch (_) {}
+        }).catch(() => {});
 
         res.status(200).json({ success: true, data: session });
     } catch (error) {
